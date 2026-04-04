@@ -13,10 +13,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from database import create_db_and_tables, engine
 from feeds import poll_all_sources
+from models import Article, Source
 from routers import articles, audit, settings, sources
 from scheduler import create_scheduler
 from sources import seed_sources
@@ -31,6 +32,28 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ── Startup helpers ───────────────────────────────────────────────────────────
+
+def _remove_defunct_sources(urls: list[str]) -> None:
+    """Delete sources (and their ingested articles) whose URLs are no longer in
+    the curated seed list. Safe to run on every startup — no-op if already gone."""
+    with Session(engine) as session:
+        for url in urls:
+            source = session.exec(select(Source).where(Source.url == url)).first()
+            if not source:
+                continue
+            deleted = session.exec(
+                select(Article).where(Article.source_id == source.id)
+            ).all()
+            for article in deleted:
+                session.delete(article)
+            session.delete(source)
+            logger.info(
+                f"Removed defunct source '{source.name}' and {len(deleted)} articles"
+            )
+            session.commit()
+
+
 # ── Lifespan ──────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -43,6 +66,10 @@ async def lifespan(app: FastAPI):
         inserted = seed_sources(session)
         if inserted:
             logger.info(f"Seeded {inserted} sources")
+
+    # One-time cleanup: remove sources (and their articles) that are no longer
+    # in the curated seed list. Currently targets ZDNet Security.
+    _remove_defunct_sources(["https://www.zdnet.com/topic/security/rss.xml"])
 
     # Initial poll — runs once at startup so analysts see data immediately
     logger.info("Running initial poll on startup")

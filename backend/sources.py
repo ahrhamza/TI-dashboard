@@ -213,12 +213,6 @@ SEED_SOURCES: list[dict] = [
         "tier": 4,
         "feed_type": "rss",
     },
-    {
-        "name": "ZDNet Security",
-        "url": "https://www.zdnet.com/topic/security/rss.xml",
-        "tier": 4,
-        "feed_type": "rss",
-    },
 ]
 
 
