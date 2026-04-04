@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import TopNav from './components/TopNav'
 import Sidebar from './components/Sidebar'
 import FeedList from './components/FeedList'
@@ -6,7 +6,7 @@ import SourcesTable from './components/SourcesTable'
 import SettingsPage from './components/SettingsPage'
 import UserPrompt from './components/UserPrompt'
 import { useUser } from './hooks/useUser'
-import { fetchArticles, fetchSources, triggerRefresh } from './api'
+import { fetchArticle, fetchArticles, fetchSources, triggerRefresh } from './api'
 
 export default function App() {
   const { name, saveName, hasName } = useUser()
@@ -44,6 +44,15 @@ export default function App() {
     showArchived: false,
   })
 
+  // Spotlight — used when navigating to a specific article from the audit log.
+  // spotlightId:   the article ID to scroll to and highlight.
+  // pinnedArticle: an article fetched on-demand that isn't in the current list
+  //                (e.g. irrelevant with showIrrelevant off). It's injected into
+  //                filteredArticles so the card is visible while spotlit.
+  const [spotlightId, setSpotlightId] = useState(null)
+  const [pinnedArticle, setPinnedArticle] = useState(null)
+  const spotlightTimer = useRef(null)
+
   const loadData = useCallback(async () => {
     try {
       const [arts, srcs] = await Promise.all([
@@ -73,6 +82,8 @@ export default function App() {
 
   const handleArticleUpdate = (updatedArticle) => {
     setArticles(prev => prev.map(a => a.id === updatedArticle.id ? updatedArticle : a))
+    // Keep pinnedArticle in sync if it was updated
+    if (pinnedArticle?.id === updatedArticle.id) setPinnedArticle(updatedArticle)
   }
 
   const handleRefresh = async () => {
@@ -87,13 +98,56 @@ export default function App() {
     }
   }
 
+  // Navigate to a specific article from the audit log.
+  // Switches to the feed page, ensures the article is visible (fetching it if
+  // necessary to bypass active filters), then highlights and scrolls to it.
+  const navigateToArticle = useCallback(async (id) => {
+    // Clear any existing spotlight timer
+    if (spotlightTimer.current) clearTimeout(spotlightTimer.current)
+
+    setPage('feed')
+    setSpotlightId(id)
+
+    // If the article isn't in the current list (filtered out or archived),
+    // fetch it individually so we can surface it temporarily.
+    const inList = articles.find(a => a.id === id)
+    if (!inList) {
+      try {
+        const fetched = await fetchArticle(id)
+        setPinnedArticle(fetched)
+      } catch {
+        setPinnedArticle(null)
+      }
+    } else {
+      setPinnedArticle(null)
+    }
+
+    // Auto-clear after 4 seconds
+    spotlightTimer.current = setTimeout(() => {
+      setSpotlightId(null)
+      setPinnedArticle(null)
+    }, 4000)
+  }, [articles])
+
+  // Clear spotlight on page change (not when switching TO feed — that's the intent)
+  const handlePageChange = (newPage) => {
+    if (newPage !== 'feed') {
+      setSpotlightId(null)
+      setPinnedArticle(null)
+      if (spotlightTimer.current) clearTimeout(spotlightTimer.current)
+    }
+    setPage(newPage)
+  }
+
   const sourceMap = useMemo(
     () => Object.fromEntries(sources.map(s => [s.id, s])),
     [sources],
   )
 
   const filteredArticles = useMemo(() => {
-    return articles.filter(a => {
+    const filtered = articles.filter(a => {
+      // Always include the spotlit article regardless of active filters
+      if (spotlightId && a.id === spotlightId) return true
       if (filters.severity && a.severity !== filters.severity) return false
       if (filters.status && a.status !== filters.status) return false
       if (filters.keywordFlag && !a.keyword_matches) return false
@@ -103,7 +157,22 @@ export default function App() {
       }
       return true
     })
-  }, [articles, filters.severity, filters.status, filters.tier, filters.keywordFlag, sourceMap])
+
+    // If the spotlit article was fetched on-demand (not in main list), inject it
+    // at its natural chronological position.
+    if (pinnedArticle && !filtered.find(a => a.id === pinnedArticle.id)) {
+      const pinDate = pinnedArticle.published_at || pinnedArticle.ingested_at || ''
+      const insertAt = filtered.findIndex(
+        a => (a.published_at || a.ingested_at || '') < pinDate
+      )
+      if (insertAt >= 0) {
+        return [...filtered.slice(0, insertAt), pinnedArticle, ...filtered.slice(insertAt)]
+      }
+      return [...filtered, pinnedArticle]
+    }
+
+    return filtered
+  }, [articles, filters.severity, filters.status, filters.tier, filters.keywordFlag, sourceMap, spotlightId, pinnedArticle])
 
   return (
     <div style={{ background: 'var(--bg-page)', color: 'var(--text-primary)', minHeight: '100vh' }}>
@@ -129,7 +198,7 @@ export default function App() {
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen(o => !o)}
         currentPage={page}
-        onPageChange={setPage}
+        onPageChange={handlePageChange}
       />
 
       <div className="flex" style={{ paddingTop: '3.5rem' }}>
@@ -155,6 +224,7 @@ export default function App() {
                 loading={loading}
                 user={name}
                 onUpdate={handleArticleUpdate}
+                spotlightId={spotlightId}
               />
             </main>
           </>
@@ -174,7 +244,7 @@ export default function App() {
         {/* Settings page */}
         {page === 'settings' && (
           <main style={{ flex: 1, minWidth: 0 }}>
-            <SettingsPage user={name} />
+            <SettingsPage user={name} onNavigateToArticle={navigateToArticle} />
           </main>
         )}
       </div>

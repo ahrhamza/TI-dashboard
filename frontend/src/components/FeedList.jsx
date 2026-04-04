@@ -1,8 +1,8 @@
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import TICard from './TICard'
 
-export default function FeedList({ articles, sourceMap, loading, user, onUpdate }) {
+export default function FeedList({ articles, sourceMap, loading, user, onUpdate, spotlightId }) {
   const parentRef = useRef(null)
 
   const virtualizer = useVirtualizer({
@@ -11,6 +11,19 @@ export default function FeedList({ articles, sourceMap, loading, user, onUpdate 
     estimateSize: () => 175,
     overscan: 5,
   })
+
+  // When spotlightId changes, scroll the virtualizer to that article's index.
+  // rAF ensures the virtualizer has processed the updated article list first.
+  useEffect(() => {
+    if (!spotlightId) return
+    const idx = articles.findIndex(a => a.id === spotlightId)
+    if (idx < 0) return
+    requestAnimationFrame(() => {
+      virtualizer.scrollToIndex(idx, { align: 'start' })
+    })
+  // virtualizer is stable across renders; articles is the real dep
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spotlightId, articles])
 
   if (loading) {
     return (
@@ -51,28 +64,32 @@ export default function FeedList({ articles, sourceMap, loading, user, onUpdate 
         className="px-6"
         style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}
       >
-        {virtualizer.getVirtualItems().map(vItem => (
-          <div
-            key={vItem.key}
-            data-index={vItem.index}
-            ref={virtualizer.measureElement}
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              paddingBottom: '0.75rem',
-              transform: `translateY(${vItem.start}px)`,
-            }}
-          >
-            <TICard
-              article={articles[vItem.index]}
-              source={sourceMap[articles[vItem.index]?.source_id]}
-              user={user}
-              onUpdate={onUpdate}
-            />
-          </div>
-        ))}
+        {virtualizer.getVirtualItems().map(vItem => {
+          const article = articles[vItem.index]
+          return (
+            <div
+              key={vItem.key}
+              data-index={vItem.index}
+              ref={virtualizer.measureElement}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                paddingBottom: '0.75rem',
+                transform: `translateY(${vItem.start}px)`,
+              }}
+            >
+              <TICard
+                article={article}
+                source={sourceMap[article?.source_id]}
+                user={user}
+                onUpdate={onUpdate}
+                highlighted={spotlightId === article?.id}
+              />
+            </div>
+          )
+        })}
       </div>
     </div>
   )

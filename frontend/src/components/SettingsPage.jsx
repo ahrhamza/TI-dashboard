@@ -346,7 +346,7 @@ function KeywordsTab({ user }) {
 
 // ── Audit Log Tab ─────────────────────────────────────────────────────────────
 
-function AuditTab() {
+function AuditTab({ onNavigateToArticle }) {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState({ user: '', action: '', since: '', until: '' })
@@ -534,11 +534,39 @@ function AuditTab() {
                       {e.action}
                     </span>
                   </td>
-                  <td style={{ padding: '0.5rem 0.875rem', whiteSpace: 'nowrap', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                    {e.target_type && e.target_id ? `${e.target_type}#${e.target_id}` : '—'}
+                  <td style={{ padding: '0.5rem 0.875rem', whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                    {e.target_type === 'article' && e.target_id ? (
+                      <button
+                        onClick={() => onNavigateToArticle(e.target_id)}
+                        title="Go to article in feed"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer',
+                          color: 'var(--accent)',
+                          fontFamily: 'inherit',
+                          fontSize: 'inherit',
+                          textDecoration: 'underline',
+                          textDecorationStyle: 'dotted',
+                          textUnderlineOffset: '2px',
+                        }}
+                      >
+                        article#{e.target_id}
+                      </button>
+                    ) : e.target_type && e.target_id ? (
+                      <span style={{ color: 'var(--text-muted)' }}>{e.target_type}#{e.target_id}</span>
+                    ) : (
+                      <span style={{ color: 'var(--text-muted)' }}>—</span>
+                    )}
                   </td>
                   <td style={{ padding: '0.5rem 0.875rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
                     {e.detail}
+                    {e.article_title && (
+                      <span style={{ color: 'var(--text-muted)', marginLeft: '0.4rem' }}>
+                        | {e.article_title}
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -552,7 +580,7 @@ function AuditTab() {
 
 // ── Main SettingsPage ─────────────────────────────────────────────────────────
 
-export default function SettingsPage({ user }) {
+export default function SettingsPage({ user, onNavigateToArticle }) {
   const [tab, setTab] = useState('general')
 
   return (
@@ -598,7 +626,7 @@ export default function SettingsPage({ user }) {
       {/* Tab content */}
       {tab === 'general' && <GeneralTab user={user} />}
       {tab === 'keywords' && <KeywordsTab user={user} />}
-      {tab === 'audit' && <AuditTab />}
+      {tab === 'audit' && <AuditTab onNavigateToArticle={onNavigateToArticle} />}
     </div>
   )
 }

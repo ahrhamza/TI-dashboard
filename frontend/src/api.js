@@ -9,6 +9,10 @@ async function request(path, options = {}) {
   return res.json()
 }
 
+export function fetchArticle(id) {
+  return request(`/articles/${id}`)
+}
+
 export function fetchArticles({ showIrrelevant = false, showArchived = false, limit = 500 } = {}) {
   const params = new URLSearchParams({ limit: String(limit) })
   if (showIrrelevant) params.set('show_irrelevant', 'true')

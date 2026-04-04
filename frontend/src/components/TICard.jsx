@@ -84,7 +84,7 @@ function getForwardAction(status) {
   }
 }
 
-export default function TICard({ article, source, user, onUpdate }) {
+export default function TICard({ article, source, user, onUpdate, highlighted }) {
   const [saving, setSaving]             = useState(false)
   // 'TICKET_RAISED' | 'RESOLVED' | null — inline status prompt state
   const [pendingStatus, setPending]     = useState(null)
@@ -205,7 +205,7 @@ export default function TICard({ article, source, user, onUpdate }) {
 
   return (
     <div
-      className="rounded-md overflow-hidden"
+      className={`rounded-md overflow-hidden${highlighted ? ' card-highlight' : ''}`}
       style={{
         background: 'var(--bg-card)',
         border: '1px solid var(--border)',
