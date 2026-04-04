@@ -46,7 +46,7 @@ Configured in `.env` (copy from `.env.example`):
 | `ARCHIVE_AFTER_DAYS`  | `10`       | Days before unactioned INGESTED items are archived (minimum 10)    |
 | `LOG_LEVEL`           | `INFO`     | Backend log verbosity (`DEBUG`, `INFO`, `WARNING`)                 |
 | `CORS_ORIGINS`        | `*`        | Comma-separated allowed origins (set for production)               |
-| `CLEAR_PASSWORD`      | `changeme` | Password required to wipe all TI articles                          |
+| `CLEAR_PASSWORD`      | `changeme` | Password required to wipe all TI articles via Settings > Data      |
 
 ---
 
@@ -63,7 +63,7 @@ python export_sources.py        # Sync DB sources → backend/sources.py (run be
 
 ---
 
-## Current Features (Phases 1–4)
+## Features (Phases 1–5)
 
 - **33 curated sources** across tiers 1–5 (authoritative vendors through community blogs), polled every 10 minutes
 - **Deduplication** — same article from multiple sources increments a counter rather than creating duplicates
@@ -104,30 +104,28 @@ python export_sources.py        # Sync DB sources → backend/sources.py (run be
 - **Audit log** — full table view (timestamp, user, action, target, detail) filterable by user, action type, and date range; article targets are clickable links that jump to the card in the feed, surface it if filtered out, and highlight it until dismissed
 - **General** — `ARCHIVE_AFTER_DAYS` configurable from the UI (minimum 10, persisted to DB, takes effect on the next hourly archive run); link to daily digest
 - **Daily digest** — `GET /digest` serves a standalone, print-optimised HTML page of all TO_ADDRESS and TICKET_RAISED items grouped by severity; suitable for screenshots or PDF export
+- **Data** — export, import, and reset controls (see below)
+
+**Data portability (Settings > Data)**
+- **Export Data** — downloads a timestamped `socfeed_export_YYYY-MM-DD.json` containing all sources (including soft-deleted), articles with full status/notes/tickets, audit log, and keywords; export is attributed to the analyst and written to the audit log
+- **Export sources.py** — downloads a ready-to-deploy `sources.py` reflecting the current active sources in the DB; equivalent to running `export_sources.py` from the terminal
+- **Import** — upload a previously exported JSON file; shows a preview diff (new TIs / sources / keywords to be added) before confirming; sources and keywords are upserted, articles upserted on dedup hash, audit log entries appended; import is written to the audit log
+- **Clear All TIs** — two-step destructive reset: confirmation dialog followed by password prompt (matches `CLEAR_PASSWORD` in `.env`); deletes all articles and audit log entries, preserves sources and keywords; feed reloads to empty state after clear
 
 ---
 
 ## Deploying to a New Environment
 
-The seed source list (`backend/sources.py`) may drift from your local DB as you add or remove sources via the UI. Before committing or deploying, run:
+The seed source list (`backend/sources.py`) may drift from your local DB as you add or remove sources via the UI. Before committing or deploying, either run the CLI script or use the in-app export:
 
 ```bash
 python export_sources.py
+# or: python export_sources.py --db /path/to/socfeed.db
 ```
 
-This reads all active sources from `data/socfeed.db` and rewrites the `SEED_SOURCES` list in `backend/sources.py`. The new environment will then seed from that updated list on first boot.
+Alternatively, use **Settings > Data > Export sources.py** to download the file directly from the browser.
 
-```bash
-python export_sources.py --db /path/to/socfeed.db   # if the DB is elsewhere
-```
-
----
-
-## What's Coming
-
-| Phase | Scope |
-|-------|-------|
-| **5**  | Data portability — timestamped JSON export, import with preview diff, destructive "Clear All TIs" with password confirmation |
+To migrate intelligence state to a new instance, use **Export Data** to produce a full JSON snapshot, then **Import** on the new instance.
 
 ---
 

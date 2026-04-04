@@ -93,7 +93,8 @@ ti-project/
 │       ├── audit.py         # Audit log read endpoints (enriched with article_title)
 │       ├── config.py        # Runtime app config (ARCHIVE_AFTER_DAYS)
 │       ├── digest.py        # Standalone HTML digest page (GET /digest)
-│       └── settings.py      # Keyword watchlist management
+│       ├── settings.py      # Keyword watchlist management
+│       └── data.py          # Export, import, sources.py export, clear all TIs
 ├── frontend/
 │   ├── Dockerfile
 │   ├── index.html
@@ -115,7 +116,7 @@ ti-project/
 │       │   ├── SourcesTable.jsx     # Source management page
 │       │   ├── SourceHealthIcon.jsx # Green/amber/red health dot
 │       │   ├── AddSourceFlow.jsx    # Two-step add source flow (preview → confirm)
-│       │   └── SettingsPage.jsx     # Tabbed settings: General, Keywords, Audit Log
+│       │   └── SettingsPage.jsx     # Tabbed settings: General, Keywords, Audit Log, Data
 │       └── styles/
 │           └── theme.css            # CSS variables for light/dark mode
 └── data/
@@ -424,8 +425,10 @@ DELETE /api/keywords/:id           # Remove term
 GET    /api/config                  # Get runtime config (archive_after_days)
 PATCH  /api/config/archive_after_days  # Update archive threshold (min 10, persisted to DB)
 GET    /digest                      # Standalone HTML digest page (no /api prefix)
-GET    /api/export                  # Full JSON export (download)
-POST   /api/import                  # Upload + validate + apply JSON backup
+GET    /api/export                  # Full JSON export (download); ?analyst= for attribution
+GET    /api/export/sources          # Download sources.py for current active sources
+POST   /api/import/preview          # Upload JSON, validate, return diff counts (no write)
+POST   /api/import                  # Upload JSON + apply (multipart: file + analyst fields)
 POST   /api/clear                   # Wipe articles + audit log (requires password in body)
 ```
 
@@ -452,7 +455,7 @@ POST   /api/clear                   # Wipe articles + audit log (requires passwo
 | 2b | Full TI workflow ✓ | Lifecycle transitions (freely transitionable, IRRELEVANT restartable), notes inline, ticket ID capture + edit, closure notes, per-item transition history, severity editing, ticket hyperlinking, status filter triggers re-fetch |
 | 3 | Source management ✓ | Source list with health indicators (green/amber/red dot), TI count per source, add-with-preview (3 samples), soft-delete with inline confirmation, per-source test button; `export_sources.py` syncs DB state back to `sources.py` for deployment |
 | 4 | Settings page ✓ | Keyword watchlist (add/delete, attributed to analyst, audit logged), audit log table (filterable by user/action/date, article targets link back to feed card with spotlight), `/digest` standalone HTML page (grouped by severity, print-optimised), `ARCHIVE_AFTER_DAYS` configurable from UI (persisted to `app_config` DB table, 10-day minimum enforced) |
-| 5 | Data portability & reset | Import/export and destructive data controls in Settings (see below) |
+| 5 | Data portability & reset ✓ | Import/export and destructive data controls in Settings > Data tab (see below) |
 
 ### Phase 5 — Data Portability & Reset
 
