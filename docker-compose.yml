@@ -1,0 +1,36 @@
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: sqlite:////data/socfeed.db
+      ARCHIVE_AFTER_HOURS: ${ARCHIVE_AFTER_HOURS:-72}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      CLEAR_PASSWORD: ${CLEAR_PASSWORD:-changeme}
+    volumes:
+      - ./data:/data
+    networks:
+      - socfeed
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-3344}:80"
+    depends_on:
+      - backend
+    networks:
+      - socfeed
+
+networks:
+  socfeed:
+    driver: bridge

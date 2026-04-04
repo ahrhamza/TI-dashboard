@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Backgrounds */
+    --bg-page: #FAFAF9;
+    --bg-card: #FFFFFF;
+    --bg-sidebar: #F8F8F7;
+    --bg-nav: #FFFFFF;
+    --bg-input: #FFFFFF;
+    --bg-hover: #F1F5F9;
+
+    /* Text */
+    --text-primary: #1E293B;
+    --text-secondary: #64748B;
+    --text-muted: #94A3B8;
+
+    /* Borders */
+    --border: #E2E8F0;
+    --border-subtle: #F1F5F9;
+
+    /* Accent */
+    --accent: #3B82F6;
+    --accent-hover: #2563EB;
+    --accent-subtle: #EFF6FF;
+    --accent-text: #1D4ED8;
+
+    /* Severity border & badge */
+    --sev-unset:    #94A3B8;
+    --sev-low:      #64748B;
+    --sev-medium:   #D97706;
+    --sev-high:     #EA580C;
+    --sev-critical: #E11D48;
+
+    --sev-unset-bg:    #F8FAFC;
+    --sev-low-bg:      #F8FAFC;
+    --sev-medium-bg:   #FFFBEB;
+    --sev-high-bg:     #FFF7ED;
+    --sev-critical-bg: #FFF1F2;
+
+    /* Lifecycle status */
+    --status-ingested-color:       #94A3B8;
+    --status-ingested-bg:          #F1F5F9;
+    --status-to-address-color:     #3B82F6;
+    --status-to-address-bg:        #EFF6FF;
+    --status-ticket-color:         #7C3AED;
+    --status-ticket-bg:            #F5F3FF;
+    --status-resolved-color:       #059669;
+    --status-resolved-bg:          #F0FDF4;
+    --status-irrelevant-color:     #94A3B8;
+    --status-irrelevant-bg:        #F1F5F9;
+  }
+
+  .dark {
+    --bg-page: #0F1117;
+    --bg-card: #161B27;
+    --bg-sidebar: #131820;
+    --bg-nav: #0D1018;
+    --bg-input: #1E2030;
+    --bg-hover: #1A2235;
+
+    --text-primary: #E2E8F0;
+    --text-secondary: #94A3B8;
+    --text-muted: #475569;
+
+    --border: #1E293B;
+    --border-subtle: #1A2235;
+
+    --accent: #3B82F6;
+    --accent-hover: #60A5FA;
+    --accent-subtle: #172554;
+    --accent-text: #93C5FD;
+
+    --sev-unset-bg:    #1E293B;
+    --sev-low-bg:      #1E293B;
+    --sev-medium-bg:   #1C1700;
+    --sev-high-bg:     #1C1000;
+    --sev-critical-bg: #1C0810;
+
+    --status-ingested-color:       #475569;
+    --status-ingested-bg:          #1E293B;
+    --status-to-address-color:     #60A5FA;
+    --status-to-address-bg:        #172554;
+    --status-ticket-color:         #A78BFA;
+    --status-ticket-bg:            #2E1065;
+    --status-resolved-color:       #34D399;
+    --status-resolved-bg:          #022C22;
+    --status-irrelevant-color:     #475569;
+    --status-irrelevant-bg:        #1E293B;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .spin {
+    animation: spin 0.8s linear infinite;
+  }
+}

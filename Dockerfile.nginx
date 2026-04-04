@@ -1,0 +1,17 @@
+# Multi-stage build: React frontend + Nginx with backend proxy config.
+# Used by docker-compose for the nginx service.
+
+# Stage 1: Build the React app
+FROM node:20-alpine AS builder
+WORKDIR /build
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ .
+RUN npm run build
+
+# Stage 2: Nginx serving built frontend + proxying /api to backend
+FROM nginx:alpine
+COPY --from=builder /build/dist /usr/share/nginx/html
+COPY nginx/default.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
