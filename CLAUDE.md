@@ -75,6 +75,7 @@ ti-project/
 ├── README.md
 ├── docker-compose.yml
 ├── .env.example
+├── sources_default.json     # Default config snapshot (sources + keywords) — import via Settings > Data on first boot
 ├── export_sources.py        # Legacy: Sync DB → backend/sources.py (superseded by UI config import)
 ├── validate_sources.py      # One-off feed reachability check
 ├── nginx/
