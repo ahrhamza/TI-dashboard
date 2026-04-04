@@ -242,7 +242,7 @@ export default function App() {
         {/* Settings page */}
         {page === 'settings' && (
           <main style={{ flex: 1, minWidth: 0 }}>
-            <SettingsPage user={name} onNavigateToArticle={navigateToArticle} />
+            <SettingsPage user={name} onNavigateToArticle={navigateToArticle} onClearSuccess={loadData} />
           </main>
         )}
       </div>

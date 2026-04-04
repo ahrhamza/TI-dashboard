@@ -128,3 +128,43 @@ export function updateArchiveDays(value, analyst) {
     body: JSON.stringify({ value, analyst }),
   })
 }
+
+// Data portability
+export function getExportUrl(analyst) {
+  return `${BASE}/export?analyst=${encodeURIComponent(analyst)}`
+}
+
+export function getExportSourcesUrl() {
+  return `${BASE}/export/sources`
+}
+
+export async function previewImport(file) {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`${BASE}/import/preview`, { method: 'POST', body: form })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`API ${res.status}: ${text}`)
+  }
+  return res.json()
+}
+
+export async function confirmImport(file, analyst) {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('analyst', analyst)
+  const res = await fetch(`${BASE}/import`, { method: 'POST', body: form })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`API ${res.status}: ${text}`)
+  }
+  return res.json()
+}
+
+export function clearAllTIs(password, analyst) {
+  return request('/clear', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ password, analyst }),
+  })
+}

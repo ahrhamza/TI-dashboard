@@ -1,16 +1,20 @@
-import { useState, useEffect, useCallback } from 'react'
-import { fetchKeywords, addKeyword, deleteKeyword, fetchAudit, fetchConfig, updateArchiveDays } from '../api'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import {
+  fetchKeywords, addKeyword, deleteKeyword, fetchAudit, fetchConfig, updateArchiveDays,
+  getExportUrl, getExportSourcesUrl, previewImport, confirmImport, clearAllTIs,
+} from '../api'
 
 const TABS = [
   { key: 'general', label: 'General' },
   { key: 'keywords', label: 'Keywords' },
   { key: 'audit', label: 'Audit Log' },
+  { key: 'data', label: 'Data' },
 ]
 
 const AUDIT_ACTIONS = [
   '', 'status_change', 'severity_change', 'note_added', 'ticket_raised',
   'source_added', 'source_deleted', 'source_disabled', 'manual_refresh',
-  'keyword_added', 'keyword_removed',
+  'keyword_added', 'keyword_removed', 'export', 'import',
 ]
 
 function formatTimestamp(ts) {
@@ -578,9 +582,457 @@ function AuditTab({ onNavigateToArticle }) {
   )
 }
 
+// ── Data Tab ──────────────────────────────────────────────────────────────────
+
+function DataTab({ user, onClearSuccess }) {
+  // Import state
+  const fileInputRef = useRef(null)
+  const [importFile, setImportFile] = useState(null)
+  const [importPreview, setImportPreview] = useState(null)
+  const [importPreviewing, setImportPreviewing] = useState(false)
+  const [importConfirming, setImportConfirming] = useState(false)
+  const [importResult, setImportResult] = useState(null)
+  const [importError, setImportError] = useState(null)
+
+  // Clear state
+  const [clearStep, setClearStep] = useState(0) // 0=idle, 1=confirm dialog, 2=password
+  const [clearPassword, setClearPassword] = useState('')
+  const [clearing, setClearing] = useState(false)
+  const [clearError, setClearError] = useState(null)
+
+  const sectionStyle = {
+    borderBottom: '1px solid var(--border)',
+    paddingBottom: '2rem',
+    marginBottom: '2rem',
+  }
+
+  const headingStyle = {
+    fontSize: '0.875rem',
+    fontWeight: '600',
+    color: 'var(--text-primary)',
+    margin: '0 0 0.25rem 0',
+  }
+
+  const descStyle = {
+    fontSize: '0.8125rem',
+    color: 'var(--text-secondary)',
+    margin: '0 0 1.25rem 0',
+    lineHeight: '1.5',
+  }
+
+  const btnPrimary = {
+    padding: '0.4rem 1rem',
+    background: 'var(--accent)',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    fontSize: '0.8125rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    textDecoration: 'none',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+  }
+
+  const btnSecondary = {
+    padding: '0.4rem 1rem',
+    background: 'var(--accent-subtle)',
+    color: 'var(--accent-text)',
+    border: '1px solid var(--border)',
+    borderRadius: '6px',
+    fontSize: '0.8125rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    textDecoration: 'none',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+  }
+
+  // ── Import handlers ──────────────────────────────────────────────────────────
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setImportFile(file)
+    setImportPreview(null)
+    setImportResult(null)
+    setImportError(null)
+    setImportPreviewing(true)
+    try {
+      const preview = await previewImport(file)
+      setImportPreview(preview)
+    } catch (err) {
+      setImportError(err.message || 'Failed to parse file — is it a valid SOCFeed export?')
+      setImportFile(null)
+    } finally {
+      setImportPreviewing(false)
+      // Reset so same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleConfirmImport = async () => {
+    if (!importFile) return
+    setImportConfirming(true)
+    setImportError(null)
+    try {
+      const result = await confirmImport(importFile, user)
+      setImportResult(result)
+      setImportPreview(null)
+      setImportFile(null)
+    } catch (err) {
+      setImportError(err.message || 'Import failed')
+    } finally {
+      setImportConfirming(false)
+    }
+  }
+
+  const handleCancelImport = () => {
+    setImportFile(null)
+    setImportPreview(null)
+    setImportError(null)
+    setImportResult(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  // ── Clear handlers ───────────────────────────────────────────────────────────
+
+  const handleClearConfirm = async () => {
+    if (!clearPassword) {
+      setClearError('Password is required')
+      return
+    }
+    setClearing(true)
+    setClearError(null)
+    try {
+      await clearAllTIs(clearPassword, user)
+      setClearStep(0)
+      setClearPassword('')
+      onClearSuccess()
+    } catch (err) {
+      const msg = err.message || ''
+      if (msg.includes('403')) {
+        setClearError('Incorrect password')
+      } else {
+        setClearError('Clear failed — check server logs')
+      }
+    } finally {
+      setClearing(false)
+    }
+  }
+
+  return (
+    <div style={{ maxWidth: '560px' }}>
+
+      {/* ── Export Data ─────────────────────────────────────────────────────── */}
+      <div style={sectionStyle}>
+        <h3 style={headingStyle}>Export Data</h3>
+        <p style={descStyle}>
+          Download a full JSON snapshot of all TI articles, sources, keywords, and audit log entries.
+          The file can be imported on any SOCFeed instance to restore state.
+        </p>
+        <a
+          href={getExportUrl(user)}
+          download
+          style={btnPrimary}
+        >
+          Export Data ↓
+        </a>
+      </div>
+
+      {/* ── Export sources.py ───────────────────────────────────────────────── */}
+      <div style={sectionStyle}>
+        <h3 style={headingStyle}>Export sources.py</h3>
+        <p style={descStyle}>
+          Download an updated <code style={{ fontFamily: 'monospace', fontSize: '0.8125rem' }}>sources.py</code> reflecting
+          the current active sources in the database — equivalent to running{' '}
+          <code style={{ fontFamily: 'monospace', fontSize: '0.8125rem' }}>export_sources.py</code> from the terminal.
+          Useful when migrating to a new instance.
+        </p>
+        <a
+          href={getExportSourcesUrl()}
+          download="sources.py"
+          style={btnSecondary}
+        >
+          Export sources.py ↓
+        </a>
+      </div>
+
+      {/* ── Import ──────────────────────────────────────────────────────────── */}
+      <div style={sectionStyle}>
+        <h3 style={headingStyle}>Import</h3>
+        <p style={descStyle}>
+          Restore from a previously exported SOCFeed JSON file. Sources and keywords are upserted;
+          TI articles are upserted on dedup hash; audit log entries are appended.
+        </p>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json,application/json"
+          onChange={handleFileChange}
+          style={{ display: 'none' }}
+          id="import-file-input"
+        />
+
+        {!importPreview && !importPreviewing && !importResult && (
+          <label
+            htmlFor="import-file-input"
+            style={{ ...btnSecondary, cursor: 'pointer' }}
+          >
+            Choose .json file…
+          </label>
+        )}
+
+        {importPreviewing && (
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Parsing file…</p>
+        )}
+
+        {importError && (
+          <div style={{ marginTop: '0.5rem' }}>
+            <p style={{ fontSize: '0.8rem', color: '#E11D48', margin: '0 0 0.75rem 0' }}>{importError}</p>
+            <label htmlFor="import-file-input" style={{ ...btnSecondary, cursor: 'pointer' }}>
+              Choose .json file…
+            </label>
+          </div>
+        )}
+
+        {importPreview && !importResult && (
+          <div style={{
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            padding: '1rem 1.25rem',
+            background: 'var(--bg-card)',
+          }}>
+            <p style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 0.75rem 0' }}>
+              Preview
+            </p>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', margin: '0 0 1rem 0', lineHeight: '1.7' }}>
+              This will add{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>{importPreview.new_articles}</strong> new TI
+              {importPreview.new_articles !== 1 ? 's' : ''},{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>{importPreview.new_sources}</strong> new
+              source{importPreview.new_sources !== 1 ? 's' : ''}, and{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>{importPreview.new_keywords}</strong> new
+              keyword{importPreview.new_keywords !== 1 ? 's' : ''}
+              {' '}(plus <strong>{importPreview.total_audit_entries}</strong> audit log entries appended).
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={handleConfirmImport}
+                disabled={importConfirming}
+                style={{
+                  ...btnPrimary,
+                  opacity: importConfirming ? 0.6 : 1,
+                  cursor: importConfirming ? 'default' : 'pointer',
+                }}
+              >
+                {importConfirming ? 'Importing…' : 'Proceed'}
+              </button>
+              <button
+                onClick={handleCancelImport}
+                style={{
+                  padding: '0.4rem 0.875rem',
+                  background: 'transparent',
+                  color: 'var(--text-secondary)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  fontSize: '0.8125rem',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {importResult && (
+          <div style={{
+            border: '1px solid #059669',
+            borderRadius: '8px',
+            padding: '0.875rem 1.25rem',
+            background: 'var(--bg-card)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+          }}>
+            <p style={{ fontSize: '0.8125rem', color: '#059669', margin: 0 }}>
+              Import complete — {importResult.articles_imported} TI{importResult.articles_imported !== 1 ? 's' : ''},
+              {' '}{importResult.sources_imported} source{importResult.sources_imported !== 1 ? 's' : ''},
+              {' '}{importResult.keywords_imported} keyword{importResult.keywords_imported !== 1 ? 's' : ''} added.
+            </p>
+            <button
+              onClick={handleCancelImport}
+              style={{
+                padding: '0.25rem 0.6rem',
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                border: '1px solid var(--border)',
+                borderRadius: '4px',
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Clear All TIs ────────────────────────────────────────────────────── */}
+      <div>
+        <h3 style={{ ...headingStyle, color: '#9F1239' }}>Clear All TIs</h3>
+        <p style={descStyle}>
+          Permanently delete all TI articles and audit log entries. Sources and keywords are preserved.
+          This action cannot be undone.
+        </p>
+
+        {clearStep === 0 && (
+          <button
+            onClick={() => { setClearStep(1); setClearError(null) }}
+            style={{
+              padding: '0.4rem 1rem',
+              background: 'transparent',
+              color: '#9F1239',
+              border: '1px solid #FDA4AF',
+              borderRadius: '6px',
+              fontSize: '0.8125rem',
+              fontWeight: '500',
+              cursor: 'pointer',
+            }}
+          >
+            Clear All TIs…
+          </button>
+        )}
+
+        {clearStep === 1 && (
+          <div style={{
+            border: '1px solid #FDA4AF',
+            borderRadius: '8px',
+            padding: '1rem 1.25rem',
+            background: 'var(--bg-card)',
+          }}>
+            <p style={{ fontSize: '0.875rem', fontWeight: '600', color: '#9F1239', margin: '0 0 0.5rem 0' }}>
+              Are you sure?
+            </p>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', margin: '0 0 1rem 0', lineHeight: '1.5' }}>
+              This will permanently delete all TI articles and audit log entries.
+              Sources and keywords will be preserved.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={() => setClearStep(2)}
+                style={{
+                  padding: '0.4rem 1rem',
+                  background: '#9F1239',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '0.8125rem',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                }}
+              >
+                Continue
+              </button>
+              <button
+                onClick={() => { setClearStep(0); setClearError(null) }}
+                style={{
+                  padding: '0.4rem 0.875rem',
+                  background: 'transparent',
+                  color: 'var(--text-secondary)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  fontSize: '0.8125rem',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {clearStep === 2 && (
+          <div style={{
+            border: '1px solid #FDA4AF',
+            borderRadius: '8px',
+            padding: '1rem 1.25rem',
+            background: 'var(--bg-card)',
+          }}>
+            <p style={{ fontSize: '0.875rem', fontWeight: '600', color: '#9F1239', margin: '0 0 0.5rem 0' }}>
+              Enter the clear password to proceed
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <input
+                type="password"
+                placeholder="Password"
+                value={clearPassword}
+                onChange={e => { setClearPassword(e.target.value); setClearError(null) }}
+                onKeyDown={e => e.key === 'Enter' && handleClearConfirm()}
+                autoFocus
+                style={{
+                  flex: 1,
+                  maxWidth: '240px',
+                  padding: '0.4rem 0.6rem',
+                  border: `1px solid ${clearError ? '#E11D48' : 'var(--border)'}`,
+                  borderRadius: '6px',
+                  background: 'var(--bg-input)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.875rem',
+                }}
+              />
+              <button
+                onClick={handleClearConfirm}
+                disabled={clearing || !clearPassword}
+                style={{
+                  padding: '0.4rem 1rem',
+                  background: '#9F1239',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '0.8125rem',
+                  fontWeight: '500',
+                  cursor: clearing || !clearPassword ? 'default' : 'pointer',
+                  opacity: clearing || !clearPassword ? 0.6 : 1,
+                }}
+              >
+                {clearing ? 'Clearing…' : 'Clear All TIs'}
+              </button>
+              <button
+                onClick={() => { setClearStep(0); setClearPassword(''); setClearError(null) }}
+                style={{
+                  padding: '0.4rem 0.875rem',
+                  background: 'transparent',
+                  color: 'var(--text-secondary)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  fontSize: '0.8125rem',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+            {clearError && (
+              <p style={{ margin: '0', fontSize: '0.8rem', color: '#E11D48' }}>{clearError}</p>
+            )}
+          </div>
+        )}
+      </div>
+
+    </div>
+  )
+}
+
 // ── Main SettingsPage ─────────────────────────────────────────────────────────
 
-export default function SettingsPage({ user, onNavigateToArticle }) {
+export default function SettingsPage({ user, onNavigateToArticle, onClearSuccess }) {
   const [tab, setTab] = useState('general')
 
   return (
@@ -627,6 +1079,7 @@ export default function SettingsPage({ user, onNavigateToArticle }) {
       {tab === 'general' && <GeneralTab user={user} />}
       {tab === 'keywords' && <KeywordsTab user={user} />}
       {tab === 'audit' && <AuditTab onNavigateToArticle={onNavigateToArticle} />}
+      {tab === 'data' && <DataTab user={user} onClearSuccess={onClearSuccess} />}
     </div>
   )
 }
