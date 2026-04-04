@@ -2,7 +2,7 @@ import { useRef, useEffect } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import TICard from './TICard'
 
-export default function FeedList({ articles, sourceMap, loading, user, onUpdate, spotlightId }) {
+export default function FeedList({ articles, sourceMap, loading, user, onUpdate, spotlightId, onDismissSpotlight }) {
   const parentRef = useRef(null)
 
   const virtualizer = useVirtualizer({
@@ -86,6 +86,7 @@ export default function FeedList({ articles, sourceMap, loading, user, onUpdate,
                 user={user}
                 onUpdate={onUpdate}
                 highlighted={spotlightId === article?.id}
+                onDismissSpotlight={spotlightId === article?.id ? onDismissSpotlight : undefined}
               />
             </div>
           )

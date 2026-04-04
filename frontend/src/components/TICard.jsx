@@ -84,7 +84,7 @@ function getForwardAction(status) {
   }
 }
 
-export default function TICard({ article, source, user, onUpdate, highlighted }) {
+export default function TICard({ article, source, user, onUpdate, highlighted, onDismissSpotlight }) {
   const [saving, setSaving]             = useState(false)
   // 'TICKET_RAISED' | 'RESOLVED' | null — inline status prompt state
   const [pendingStatus, setPending]     = useState(null)
@@ -205,13 +205,14 @@ export default function TICard({ article, source, user, onUpdate, highlighted })
 
   return (
     <div
-      className={`rounded-md overflow-hidden${highlighted ? ' card-highlight' : ''}`}
+      className="rounded-md overflow-hidden"
       style={{
         background: 'var(--bg-card)',
         border: '1px solid var(--border)',
         borderLeft: `3px solid ${borderColor}`,
         opacity: isIrrelevant ? 0.55 : 1,
         transition: 'opacity 0.2s ease',
+        boxShadow: highlighted ? '0 0 0 2px var(--accent)' : undefined,
       }}
     >
       {/* ── Header ─────────────────────────────────────────────────────────── */}
@@ -251,12 +252,36 @@ export default function TICard({ article, source, user, onUpdate, highlighted })
         )}
 
         <span
-          className="ml-auto text-xs tabular-nums cursor-default"
-          style={{ color: 'var(--text-muted)' }}
+          className="text-xs tabular-nums cursor-default"
+          style={{ color: 'var(--text-muted)', marginLeft: 'auto' }}
           title={formatDateTime(article.published_at)}
         >
           {relativeTime(article.published_at)}
         </span>
+
+        {highlighted && onDismissSpotlight && (
+          <button
+            onClick={onDismissSpotlight}
+            title="Dismiss — surfaced from audit log"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.25rem',
+              padding: '0.15rem 0.5rem',
+              background: 'var(--accent-subtle)',
+              color: 'var(--accent-text)',
+              border: '1px solid var(--accent)',
+              borderRadius: '4px',
+              fontSize: '0.7rem',
+              fontWeight: '500',
+              cursor: 'pointer',
+              lineHeight: 1,
+              flexShrink: 0,
+            }}
+          >
+            ✕ Dismiss
+          </button>
+        )}
       </div>
 
       {/* ── Body ───────────────────────────────────────────────────────────── */}

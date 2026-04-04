@@ -112,13 +112,4 @@
     animation: spin 0.8s linear infinite;
   }
 
-  @keyframes cardHighlight {
-    0%   { box-shadow: 0 0 0 2px var(--accent), 0 0 12px rgba(59, 130, 246, 0.20); }
-    60%  { box-shadow: 0 0 0 2px var(--accent), 0 0 12px rgba(59, 130, 246, 0.20); }
-    100% { box-shadow: none; }
-  }
-
-  .card-highlight {
-    animation: cardHighlight 3s ease-out forwards;
-  }
 }

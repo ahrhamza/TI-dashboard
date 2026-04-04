@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import TopNav from './components/TopNav'
 import Sidebar from './components/Sidebar'
 import FeedList from './components/FeedList'
@@ -49,9 +49,9 @@ export default function App() {
   // pinnedArticle: an article fetched on-demand that isn't in the current list
   //                (e.g. irrelevant with showIrrelevant off). It's injected into
   //                filteredArticles so the card is visible while spotlit.
+  // Spotlight persists until the analyst dismisses it or navigates away.
   const [spotlightId, setSpotlightId] = useState(null)
   const [pinnedArticle, setPinnedArticle] = useState(null)
-  const spotlightTimer = useRef(null)
 
   const loadData = useCallback(async () => {
     try {
@@ -101,10 +101,8 @@ export default function App() {
   // Navigate to a specific article from the audit log.
   // Switches to the feed page, ensures the article is visible (fetching it if
   // necessary to bypass active filters), then highlights and scrolls to it.
+  // The spotlight persists until the analyst dismisses it or navigates away.
   const navigateToArticle = useCallback(async (id) => {
-    // Clear any existing spotlight timer
-    if (spotlightTimer.current) clearTimeout(spotlightTimer.current)
-
     setPage('feed')
     setSpotlightId(id)
 
@@ -121,20 +119,19 @@ export default function App() {
     } else {
       setPinnedArticle(null)
     }
-
-    // Auto-clear after 4 seconds
-    spotlightTimer.current = setTimeout(() => {
-      setSpotlightId(null)
-      setPinnedArticle(null)
-    }, 4000)
   }, [articles])
 
-  // Clear spotlight on page change (not when switching TO feed — that's the intent)
+  const clearSpotlight = useCallback(() => {
+    setSpotlightId(null)
+    setPinnedArticle(null)
+  }, [])
+
+  // Clear spotlight when navigating away from the feed page.
+  // Returning to feed after visiting Sources/Settings starts clean.
   const handlePageChange = (newPage) => {
     if (newPage !== 'feed') {
       setSpotlightId(null)
       setPinnedArticle(null)
-      if (spotlightTimer.current) clearTimeout(spotlightTimer.current)
     }
     setPage(newPage)
   }
@@ -225,6 +222,7 @@ export default function App() {
                 user={name}
                 onUpdate={handleArticleUpdate}
                 spotlightId={spotlightId}
+                onDismissSpotlight={clearSpotlight}
               />
             </main>
           </>
