@@ -3,6 +3,7 @@ import TopNav from './components/TopNav'
 import Sidebar from './components/Sidebar'
 import FeedList from './components/FeedList'
 import SourcesTable from './components/SourcesTable'
+import SettingsPage from './components/SettingsPage'
 import UserPrompt from './components/UserPrompt'
 import { useUser } from './hooks/useUser'
 import { fetchArticles, fetchSources, triggerRefresh } from './api'
@@ -12,7 +13,7 @@ export default function App() {
   const [showRename, setShowRename] = useState(false)
 
   // Page routing
-  const [page, setPage] = useState('feed') // 'feed' | 'sources'
+  const [page, setPage] = useState('feed') // 'feed' | 'sources' | 'settings'
 
   // Theme
   const [darkMode, setDarkMode] = useState(() => {
@@ -167,6 +168,13 @@ export default function App() {
               user={name}
               onSourcesChange={loadData}
             />
+          </main>
+        )}
+
+        {/* Settings page */}
+        {page === 'settings' && (
+          <main style={{ flex: 1, minWidth: 0 }}>
+            <SettingsPage user={name} />
           </main>
         )}
       </div>

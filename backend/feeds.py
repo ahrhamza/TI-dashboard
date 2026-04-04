@@ -22,7 +22,7 @@ import feedparser
 import httpx
 from sqlmodel import Session, select
 
-from models import Article, ArticleStatus, AuditLog, FeedType, Keyword, Source
+from models import AppConfig, Article, ArticleStatus, AuditLog, FeedType, Keyword, Source
 
 logger = logging.getLogger(__name__)
 
@@ -279,12 +279,23 @@ def poll_all_sources(session: Session) -> dict[str, int]:
     return results
 
 
+def get_archive_after_days(session: Session) -> int:
+    """Read ARCHIVE_AFTER_DAYS from DB config, falling back to env var. Minimum 10."""
+    try:
+        config = session.get(AppConfig, "archive_after_days")
+        if config:
+            return max(10, int(config.value))
+    except Exception:
+        pass
+    return max(10, int(os.getenv("ARCHIVE_AFTER_DAYS", "10")))
+
+
 def auto_archive(session: Session) -> int:
     """
     Mark INGESTED articles older than ARCHIVE_AFTER_DAYS as archived.
     Minimum enforced value is 10 days. Runs on a separate hourly schedule.
     """
-    days = max(10, int(os.getenv("ARCHIVE_AFTER_DAYS", "10")))
+    days = get_archive_after_days(session)
     cutoff = datetime.utcnow() - timedelta(days=days)
 
     stale = session.exec(

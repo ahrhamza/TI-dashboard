@@ -82,3 +82,45 @@ export function deleteSource(id, analyst) {
 export function testSource(id) {
   return request(`/sources/${id}/test`, { method: 'POST' })
 }
+
+// Keywords
+export function fetchKeywords() {
+  return request('/keywords')
+}
+
+export function addKeyword(term, analyst) {
+  return request('/keywords', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ term, analyst }),
+  })
+}
+
+export function deleteKeyword(id, analyst) {
+  return request(`/keywords/${id}?analyst=${encodeURIComponent(analyst)}`, {
+    method: 'DELETE',
+  })
+}
+
+// Audit log
+export function fetchAudit({ user, action, since, until, limit = 200, offset = 0 } = {}) {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+  if (user) params.set('user', user)
+  if (action) params.set('action', action)
+  if (since) params.set('since', since)
+  if (until) params.set('until', until)
+  return request(`/audit?${params}`)
+}
+
+// App config
+export function fetchConfig() {
+  return request('/config')
+}
+
+export function updateArchiveDays(value, analyst) {
+  return request('/config/archive_after_days', {
+    method: 'PATCH',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ value, analyst }),
+  })
+}

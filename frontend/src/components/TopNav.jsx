@@ -99,24 +99,22 @@ export default function TopNav({
       {/* Nav links */}
       <nav className="flex items-center gap-0.5 ml-3">
         {[
-          { key: 'feed',     label: 'Feed',     enabled: true },
-          { key: 'sources',  label: 'Sources',  enabled: true },
-          { key: 'settings', label: 'Settings', enabled: false },
-        ].map(({ key, label, enabled }) => {
+          { key: 'feed',     label: 'Feed' },
+          { key: 'sources',  label: 'Sources' },
+          { key: 'settings', label: 'Settings' },
+        ].map(({ key, label }) => {
           const active = currentPage === key
           return (
             <button
               key={key}
-              onClick={() => enabled && onPageChange(key)}
+              onClick={() => onPageChange(key)}
               className="px-3 py-1.5 rounded text-sm transition-colors"
               style={{
                 color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
                 background: active ? 'var(--accent-subtle)' : 'transparent',
                 fontWeight: active ? '500' : '400',
-                cursor: enabled ? 'pointer' : 'default',
-                opacity: enabled ? 1 : 0.4,
+                cursor: 'pointer',
               }}
-              title={!enabled ? 'Coming in Phase 4' : undefined}
             >
               {label}
             </button>

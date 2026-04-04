@@ -18,7 +18,7 @@ from sqlmodel import Session, select
 from database import create_db_and_tables, engine
 from feeds import poll_all_sources
 from models import Article, Source
-from routers import articles, audit, settings, sources
+from routers import articles, audit, config, digest, settings, sources
 from scheduler import create_scheduler
 from sources import seed_sources
 
@@ -110,6 +110,8 @@ app.include_router(articles.router)
 app.include_router(sources.router)
 app.include_router(audit.router)
 app.include_router(settings.router)
+app.include_router(config.router)
+app.include_router(digest.router)
 
 
 @app.get("/health", tags=["meta"])

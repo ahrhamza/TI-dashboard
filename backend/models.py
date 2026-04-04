@@ -85,3 +85,12 @@ class Keyword(SQLModel, table=True):
     term: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
     created_by: str = "system"
+
+
+class AppConfig(SQLModel, table=True):
+    __tablename__ = "app_config"
+
+    key: str = Field(primary_key=True)
+    value: str
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_by: str = "system"
