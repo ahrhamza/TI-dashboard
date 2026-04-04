@@ -218,4 +218,3 @@ node_modules/
 .env
 __pycache__/
 *.db
-CLAUDE.md
