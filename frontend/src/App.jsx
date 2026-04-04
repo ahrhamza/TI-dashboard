@@ -43,7 +43,9 @@ export default function App() {
     try {
       const [arts, srcs] = await Promise.all([
         fetchArticles({
-          showIrrelevant: filters.showIrrelevant,
+          // Include irrelevant items when the status filter targets them,
+          // or when the sidebar toggle is explicitly on.
+          showIrrelevant: filters.showIrrelevant || filters.status === 'IRRELEVANT',
           showArchived: filters.showArchived,
         }),
         fetchSources(),
@@ -56,7 +58,9 @@ export default function App() {
     } finally {
       setLoading(false)
     }
-  }, [filters.showIrrelevant, filters.showArchived])
+  // status is a dep so switching to the IRRELEVANT filter triggers a fresh fetch.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.showIrrelevant, filters.showArchived, filters.status])
 
   useEffect(() => {
     loadData()

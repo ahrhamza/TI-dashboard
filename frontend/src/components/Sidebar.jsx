@@ -39,15 +39,7 @@ function hasActiveFilters(f) {
 
 export default function Sidebar({ open, filters, onFilterChange }) {
   function set(key, value) {
-    onFilterChange(prev => {
-      const next = { ...prev, [key]: value }
-      // Selecting IRRELEVANT status must also fetch irrelevant items from the API.
-      // Clearing status filter restores the default (hide irrelevant).
-      if (key === 'status') {
-        next.showIrrelevant = value === 'IRRELEVANT' ? true : prev.showIrrelevant
-      }
-      return next
-    })
+    onFilterChange(prev => ({ ...prev, [key]: value }))
   }
 
   function clearAll() {
