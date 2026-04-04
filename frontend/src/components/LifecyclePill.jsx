@@ -6,9 +6,15 @@ const STATUS_CONFIG = {
   IRRELEVANT:    { label: 'Irrelevant',    color: 'var(--status-irrelevant-color)',  bg: 'var(--status-irrelevant-bg)' },
 }
 
+function parseUTC(dateStr) {
+  if (!dateStr) return null
+  const s = (dateStr.endsWith('Z') || dateStr.includes('+')) ? dateStr : dateStr + 'Z'
+  return new Date(s)
+}
+
 function timeInState(changedAt) {
   if (!changedAt) return null
-  const diff = Date.now() - new Date(changedAt).getTime()
+  const diff = Date.now() - parseUTC(changedAt).getTime()
   const mins = Math.floor(diff / 60000)
   if (mins < 60) return `${mins}m`
   const hours = Math.floor(mins / 60)

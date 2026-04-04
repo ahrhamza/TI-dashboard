@@ -25,3 +25,34 @@ export async function triggerRefresh() {
   if (!res.ok) throw new Error('Refresh failed')
   return res.json()
 }
+
+const JSON_HEADERS = { 'Content-Type': 'application/json' }
+
+export function patchArticleStatus(id, status, user, { ticketId, notes } = {}) {
+  return request(`/articles/${id}/status`, {
+    method: 'PATCH',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ status, user, ticket_id: ticketId ?? null, notes: notes ?? null }),
+  })
+}
+
+export function patchArticleSeverity(id, severity, user) {
+  return request(`/articles/${id}/severity`, {
+    method: 'PATCH',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ severity, user }),
+  })
+}
+
+export function patchArticleNotes(id, note, user) {
+  return request(`/articles/${id}/notes`, {
+    method: 'PATCH',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ note, user }),
+  })
+}
+
+export function fetchArticleHistory(id) {
+  const params = new URLSearchParams({ target_type: 'article', target_id: String(id), limit: '50' })
+  return request(`/audit?${params}`)
+}

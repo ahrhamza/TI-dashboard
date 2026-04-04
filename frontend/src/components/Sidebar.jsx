@@ -21,6 +21,7 @@ const STATUS_OPTIONS = [
   { value: 'TO_ADDRESS',    label: 'To Address' },
   { value: 'TICKET_RAISED', label: 'Ticket Raised' },
   { value: 'RESOLVED',      label: 'Resolved' },
+  { value: 'IRRELEVANT',    label: 'Irrelevant' },
 ]
 
 const TIER_OPTIONS = [
@@ -38,7 +39,15 @@ function hasActiveFilters(f) {
 
 export default function Sidebar({ open, filters, onFilterChange }) {
   function set(key, value) {
-    onFilterChange(prev => ({ ...prev, [key]: value }))
+    onFilterChange(prev => {
+      const next = { ...prev, [key]: value }
+      // Selecting IRRELEVANT status must also fetch irrelevant items from the API.
+      // Clearing status filter restores the default (hide irrelevant).
+      if (key === 'status') {
+        next.showIrrelevant = value === 'IRRELEVANT' ? true : prev.showIrrelevant
+      }
+      return next
+    })
   }
 
   function clearAll() {

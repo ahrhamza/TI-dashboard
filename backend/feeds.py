@@ -281,11 +281,11 @@ def poll_all_sources(session: Session) -> dict[str, int]:
 
 def auto_archive(session: Session) -> int:
     """
-    Mark INGESTED articles older than ARCHIVE_AFTER_HOURS as archived.
-    Runs on a separate hourly schedule.
+    Mark INGESTED articles older than ARCHIVE_AFTER_DAYS as archived.
+    Minimum enforced value is 10 days. Runs on a separate hourly schedule.
     """
-    hours = int(os.getenv("ARCHIVE_AFTER_HOURS", "72"))
-    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    days = max(10, int(os.getenv("ARCHIVE_AFTER_DAYS", "10")))
+    cutoff = datetime.utcnow() - timedelta(days=days)
 
     stale = session.exec(
         select(Article)
@@ -302,5 +302,5 @@ def auto_archive(session: Session) -> int:
         article.archived_at = archive_time
 
     session.commit()
-    logger.info(f"Auto-archived {len(stale)} articles (older than {hours}h)")
+    logger.info(f"Auto-archived {len(stale)} articles (older than {days}d)")
     return len(stale)

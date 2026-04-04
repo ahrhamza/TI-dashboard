@@ -62,6 +62,10 @@ export default function App() {
     loadData()
   }, [loadData])
 
+  const handleArticleUpdate = (updatedArticle) => {
+    setArticles(prev => prev.map(a => a.id === updatedArticle.id ? updatedArticle : a))
+  }
+
   const handleRefresh = async () => {
     setRefreshing(true)
     try {
@@ -136,6 +140,8 @@ export default function App() {
             articles={filteredArticles}
             sourceMap={sourceMap}
             loading={loading}
+            user={name}
+            onUpdate={handleArticleUpdate}
           />
         </main>
       </div>

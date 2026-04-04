@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import TICard from './TICard'
 
-export default function FeedList({ articles, sourceMap, loading }) {
+export default function FeedList({ articles, sourceMap, loading, user, onUpdate }) {
   const parentRef = useRef(null)
 
   const virtualizer = useVirtualizer({
@@ -68,6 +68,8 @@ export default function FeedList({ articles, sourceMap, loading }) {
             <TICard
               article={articles[vItem.index]}
               source={sourceMap[articles[vItem.index]?.source_id]}
+              user={user}
+              onUpdate={onUpdate}
             />
           </div>
         ))}

@@ -15,6 +15,7 @@ def list_audit(
     user: Optional[str] = None,
     action: Optional[str] = None,
     target_type: Optional[str] = None,
+    target_id: Optional[int] = None,
     since: Optional[datetime] = None,
     until: Optional[datetime] = None,
     limit: int = Query(default=200, le=1000),
@@ -29,6 +30,8 @@ def list_audit(
         stmt = stmt.where(AuditLog.action == action)
     if target_type:
         stmt = stmt.where(AuditLog.target_type == target_type)
+    if target_id is not None:
+        stmt = stmt.where(AuditLog.target_id == target_id)
     if since:
         stmt = stmt.where(AuditLog.timestamp >= since)
     if until:

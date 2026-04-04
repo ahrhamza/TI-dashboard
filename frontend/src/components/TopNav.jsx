@@ -97,7 +97,6 @@ export default function TopNav({
         {[
           { label: 'Feed',     active: true },
           { label: 'Sources',  active: false },
-          { label: 'Audit',    active: false },
           { label: 'Settings', active: false },
         ].map(({ label, active }) => (
           <a
