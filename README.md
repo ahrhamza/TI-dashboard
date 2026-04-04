@@ -63,7 +63,7 @@ python export_sources.py        # Sync DB sources → backend/sources.py (run be
 
 ---
 
-## Current Features (Phases 1–3)
+## Current Features (Phases 1–4)
 
 - **33 curated sources** across tiers 1–5 (authoritative vendors through community blogs), polled every 10 minutes
 - **Deduplication** — same article from multiple sources increments a counter rather than creating duplicates
@@ -99,6 +99,12 @@ python export_sources.py        # Sync DB sources → backend/sources.py (run be
 - Analyst identity — first-visit name prompt stored in a 90-day cookie, rename option in nav bar
 - Manual refresh — button triggers an immediate poll of all sources
 
+**Settings page**
+- **Keywords** — manage the ingest-time watchlist; add/delete terms, all changes attributed to analyst and written to audit log
+- **Audit log** — full table view (timestamp, user, action, target, detail) filterable by user, action type, and date range; article targets are clickable links that jump to the card in the feed, surface it if filtered out, and highlight it until dismissed
+- **General** — `ARCHIVE_AFTER_DAYS` configurable from the UI (minimum 10, persisted to DB, takes effect on the next hourly archive run); link to daily digest
+- **Daily digest** — `GET /digest` serves a standalone, print-optimised HTML page of all TO_ADDRESS and TICKET_RAISED items grouped by severity; suitable for screenshots or PDF export
+
 ---
 
 ## Deploying to a New Environment
@@ -121,7 +127,6 @@ python export_sources.py --db /path/to/socfeed.db   # if the DB is elsewhere
 
 | Phase | Scope |
 |-------|-------|
-| **4**  | Settings page — keyword watchlist, audit log viewer, `/digest` print-optimised summary, `ARCHIVE_AFTER_DAYS` configurable from UI |
 | **5**  | Data portability — timestamped JSON export, import with preview diff, destructive "Clear All TIs" with password confirmation |
 
 ---
