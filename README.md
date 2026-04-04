@@ -34,6 +34,8 @@ The stack takes ~30 seconds to build on first run. Once up, the backend performs
 
 **Access:** `http://localhost:3344`
 
+**First time setup:** after booting, go to Settings → Data → Import, select `sources_default.json` from the repo root, and confirm. Your sources and keywords will be live immediately and the next scheduled poll (within 10 minutes) will begin ingesting articles.
+
 ---
 
 ## Environment Variables
