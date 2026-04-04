@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   fetchKeywords, addKeyword, deleteKeyword, fetchAudit, fetchConfig, updateArchiveDays,
-  getExportUrl, getExportSourcesUrl, previewImport, confirmImport, clearAllTIs,
+  getExportUrl, getExportConfigUrl, previewImport, confirmImport, clearAllTIs,
 } from '../api'
 
 const TABS = [
@@ -742,21 +742,20 @@ function DataTab({ user, onClearSuccess }) {
         </a>
       </div>
 
-      {/* ── Export sources.py ───────────────────────────────────────────────── */}
+      {/* ── Export Config ────────────────────────────────────────────────────── */}
       <div style={sectionStyle}>
-        <h3 style={headingStyle}>Export sources.py</h3>
+        <h3 style={headingStyle}>Export Config</h3>
         <p style={descStyle}>
-          Download an updated <code style={{ fontFamily: 'monospace', fontSize: '0.8125rem' }}>sources.py</code> reflecting
-          the current active sources in the database — equivalent to running{' '}
-          <code style={{ fontFamily: 'monospace', fontSize: '0.8125rem' }}>export_sources.py</code> from the terminal.
-          Useful when migrating to a new instance.
+          Download a JSON file containing all sources (active and soft-deleted) and keyword watchlist terms.
+          Use this to bootstrap a new instance without carrying over historical TI articles and audit log.
+          Import it on the new instance using the Import section below.
         </p>
         <a
-          href={getExportSourcesUrl()}
-          download="sources.py"
+          href={getExportConfigUrl(user)}
+          download
           style={btnSecondary}
         >
-          Export sources.py ↓
+          Export Config ↓
         </a>
       </div>
 
@@ -764,8 +763,9 @@ function DataTab({ user, onClearSuccess }) {
       <div style={sectionStyle}>
         <h3 style={headingStyle}>Import</h3>
         <p style={descStyle}>
-          Restore from a previously exported SOCFeed JSON file. Sources and keywords are upserted;
-          TI articles are upserted on dedup hash; audit log entries are appended.
+          Upload a previously exported SOCFeed JSON file — either a full data export or a config export
+          (sources + keywords). Sources and keywords are upserted; TI articles and audit log entries
+          are applied only if present in the file.
         </p>
 
         <input
@@ -810,14 +810,26 @@ function DataTab({ user, onClearSuccess }) {
               Preview
             </p>
             <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', margin: '0 0 1rem 0', lineHeight: '1.7' }}>
-              This will add{' '}
-              <strong style={{ color: 'var(--text-primary)' }}>{importPreview.new_articles}</strong> new TI
-              {importPreview.new_articles !== 1 ? 's' : ''},{' '}
-              <strong style={{ color: 'var(--text-primary)' }}>{importPreview.new_sources}</strong> new
-              source{importPreview.new_sources !== 1 ? 's' : ''}, and{' '}
-              <strong style={{ color: 'var(--text-primary)' }}>{importPreview.new_keywords}</strong> new
-              keyword{importPreview.new_keywords !== 1 ? 's' : ''}
-              {' '}(plus <strong>{importPreview.total_audit_entries}</strong> audit log entries appended).
+              {importPreview.export_type === 'config' ? (
+                <>
+                  Config import — this will add{' '}
+                  <strong style={{ color: 'var(--text-primary)' }}>{importPreview.new_sources}</strong> new
+                  source{importPreview.new_sources !== 1 ? 's' : ''} and{' '}
+                  <strong style={{ color: 'var(--text-primary)' }}>{importPreview.new_keywords}</strong> new
+                  keyword{importPreview.new_keywords !== 1 ? 's' : ''}. No TI articles or audit log entries.
+                </>
+              ) : (
+                <>
+                  This will add{' '}
+                  <strong style={{ color: 'var(--text-primary)' }}>{importPreview.new_articles}</strong> new TI
+                  {importPreview.new_articles !== 1 ? 's' : ''},{' '}
+                  <strong style={{ color: 'var(--text-primary)' }}>{importPreview.new_sources}</strong> new
+                  source{importPreview.new_sources !== 1 ? 's' : ''}, and{' '}
+                  <strong style={{ color: 'var(--text-primary)' }}>{importPreview.new_keywords}</strong> new
+                  keyword{importPreview.new_keywords !== 1 ? 's' : ''}
+                  {' '}(plus <strong>{importPreview.total_audit_entries}</strong> audit log entries appended).
+                </>
+              )}
             </p>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button

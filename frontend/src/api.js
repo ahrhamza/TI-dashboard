@@ -134,8 +134,8 @@ export function getExportUrl(analyst) {
   return `${BASE}/export?analyst=${encodeURIComponent(analyst)}`
 }
 
-export function getExportSourcesUrl() {
-  return `${BASE}/export/sources`
+export function getExportConfigUrl(analyst) {
+  return `${BASE}/export/config?analyst=${encodeURIComponent(analyst)}`
 }
 
 export async function previewImport(file) {

@@ -40,6 +40,7 @@ class Source(SQLModel, table=True):
     last_success_at: Optional[datetime] = None
     last_entry_count: Optional[int] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_by: str = Field(default="system")
 
 
 class Article(SQLModel, table=True):

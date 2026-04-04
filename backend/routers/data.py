@@ -1,10 +1,11 @@
 """
 Data portability and reset endpoints.
 
-GET  /api/export             — Full JSON export (download)
-GET  /api/export/sources     — Download sources.py reflecting current active sources
-POST /api/import/preview     — Validate a JSON backup and return a diff summary
-POST /api/import             — Apply a validated JSON backup (upsert + append)
+GET  /api/export             — Full JSON export (all data: articles, sources, keywords, audit log)
+GET  /api/export/config      — Config-only JSON export (sources + keywords; for bootstrapping new instances)
+GET  /api/export/sources     — Legacy: download sources.py Python file
+POST /api/import/preview     — Validate a JSON backup (full or config) and return a diff summary
+POST /api/import             — Apply a validated JSON backup (upsert + append); accepts full or config exports
 POST /api/clear              — Wipe articles + audit_log (password-protected)
 """
 import io
@@ -73,6 +74,7 @@ def _build_export(session: Session, analyst: str) -> dict:
                 "last_success_at": _dt(s.last_success_at),
                 "last_entry_count": s.last_entry_count,
                 "created_at": _dt(s.created_at),
+                "created_by": s.created_by,
             }
             for s in sources
         ],
@@ -123,14 +125,15 @@ def _build_export(session: Session, analyst: str) -> dict:
 
 
 def _build_sources_py(session: Session) -> str:
-    """Generate the full sources.py content from active DB rows."""
+    """Generate the full sources.py content from all DB rows (active and inactive)."""
     rows = session.exec(
-        select(Source).where(Source.is_active == True).order_by(Source.tier, Source.name)  # noqa: E712
+        select(Source).order_by(Source.tier, Source.name)
     ).all()
 
     lines = [
         '"""',
         "Curated source list — auto-generated from DB via export_sources.py / /api/export/sources.",
+        "Includes all sources (active and soft-deleted) with their is_active status.",
         "Edit via the Sources UI; run export_sources.py (or use the Export button) before deploying.",
         '"""',
         "from sqlmodel import Session, select",
@@ -152,12 +155,13 @@ def _build_sources_py(session: Session) -> str:
         lines.append(f'        "url": {s.url!r},')
         lines.append(f'        "tier": {s.tier},')
         lines.append(f'        "feed_type": {s.feed_type!r},')
+        lines.append(f'        "is_active": {s.is_active},')
         lines.append("    },")
 
     lines.append("]")
     lines.append("")
 
-    # Append the seed function — copied verbatim from the current sources.py pattern
+    # Append the seed function — legacy, superseded by config import via the UI
     lines += [
         "",
         "def seed_sources(session: Session) -> int:",
@@ -172,6 +176,7 @@ def _build_sources_py(session: Session) -> str:
         "            url=s['url'],",
         "            tier=s['tier'],",
         "            feed_type=FeedType(s['feed_type']),",
+        "            is_active=s.get('is_active', True),",
         "        )",
         "        session.add(source)",
         "        inserted += 1",
@@ -182,23 +187,67 @@ def _build_sources_py(session: Session) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _build_config_export(session: Session, analyst: str) -> dict:
+    """Config-only export: sources + keywords. No articles or audit log."""
+    sources = session.exec(select(Source).order_by(Source.tier, Source.name)).all()
+    keywords = session.exec(select(Keyword).order_by(Keyword.term)).all()
+
+    return {
+        "meta": {
+            "exported_at": datetime.utcnow().isoformat(),
+            "exported_by": analyst,
+            "app_version": APP_VERSION,
+            "schema_version": 1,
+            "export_type": "config",
+        },
+        "sources": [
+            {
+                "id": s.id,
+                "name": s.name,
+                "url": s.url,
+                "tier": s.tier,
+                "feed_type": s.feed_type,
+                "is_active": s.is_active,
+                "consecutive_failures": s.consecutive_failures,
+                "last_fetched_at": _dt(s.last_fetched_at),
+                "last_success_at": _dt(s.last_success_at),
+                "last_entry_count": s.last_entry_count,
+                "created_at": _dt(s.created_at),
+                "created_by": s.created_by,
+            }
+            for s in sources
+        ],
+        "keywords": [
+            {
+                "id": k.id,
+                "term": k.term,
+                "created_at": _dt(k.created_at),
+                "created_by": k.created_by,
+            }
+            for k in keywords
+        ],
+    }
+
+
 def _validate_export(data: dict) -> None:
-    """Raise HTTPException if the JSON structure is invalid."""
-    required_top = {"meta", "sources", "articles", "audit_log", "keywords"}
-    missing = required_top - set(data.keys())
-    if missing:
+    """Raise HTTPException if the JSON structure is invalid.
+    Accepts both full exports (sources + articles + audit_log + keywords)
+    and config-only exports (sources + keywords).
+    """
+    if "sources" not in data or "keywords" not in data or "meta" not in data:
         raise HTTPException(
             status_code=422,
-            detail=f"Invalid export file — missing top-level keys: {missing}",
+            detail="Invalid export file — must contain 'meta', 'sources', and 'keywords'",
         )
     if not isinstance(data["sources"], list):
         raise HTTPException(status_code=422, detail="'sources' must be a list")
-    if not isinstance(data["articles"], list):
-        raise HTTPException(status_code=422, detail="'articles' must be a list")
-    if not isinstance(data["audit_log"], list):
-        raise HTTPException(status_code=422, detail="'audit_log' must be a list")
     if not isinstance(data["keywords"], list):
         raise HTTPException(status_code=422, detail="'keywords' must be a list")
+    # Full export fields are optional — config exports omit them
+    if "articles" in data and not isinstance(data["articles"], list):
+        raise HTTPException(status_code=422, detail="'articles' must be a list")
+    if "audit_log" in data and not isinstance(data["audit_log"], list):
+        raise HTTPException(status_code=422, detail="'audit_log' must be a list")
 
 
 # ── Export ─────────────────────────────────────────────────────────────────────
@@ -219,6 +268,30 @@ def export_data(analyst: str = "unknown", session: Session = Depends(get_session
     session.commit()
 
     filename = f"socfeed_export_{date.today().isoformat()}.json"
+    content = json.dumps(payload, indent=2, default=str)
+
+    return Response(
+        content=content,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/export/config")
+def export_config(analyst: str = "unknown", session: Session = Depends(get_session)):
+    import json
+
+    payload = _build_config_export(session, analyst)
+
+    audit = AuditLog(
+        user=analyst,
+        action="export_config",
+        detail=f"Exported config: {len(payload['sources'])} sources, {len(payload['keywords'])} keywords",
+    )
+    session.add(audit)
+    session.commit()
+
+    filename = f"socfeed_config_{date.today().isoformat()}.json"
     content = json.dumps(payload, indent=2, default=str)
 
     return Response(
@@ -266,18 +339,20 @@ async def import_preview(
         k.term for k in session.exec(select(Keyword)).all()
     )
 
+    articles = data.get("articles", [])
     new_sources = sum(1 for s in data["sources"] if s.get("url") not in existing_source_urls)
-    new_articles = sum(1 for a in data["articles"] if a.get("dedup_hash") not in existing_dedup_hashes)
+    new_articles = sum(1 for a in articles if a.get("dedup_hash") not in existing_dedup_hashes)
     new_keywords = sum(1 for k in data["keywords"] if k.get("term") not in existing_keyword_terms)
 
     return {
+        "export_type": data.get("meta", {}).get("export_type", "full"),
         "new_articles": new_articles,
         "new_sources": new_sources,
         "new_keywords": new_keywords,
-        "total_articles": len(data["articles"]),
+        "total_articles": len(articles),
         "total_sources": len(data["sources"]),
         "total_keywords": len(data["keywords"]),
-        "total_audit_entries": len(data["audit_log"]),
+        "total_audit_entries": len(data.get("audit_log", [])),
         # Echo data back so the frontend can pass it to the confirm step
         "data": data,
     }
@@ -312,7 +387,14 @@ async def import_data(
     for s in data["sources"]:
         url = s.get("url", "")
         if url in existing_sources_by_url:
-            id_remap[s["id"]] = existing_sources_by_url[url].id
+            existing = existing_sources_by_url[url]
+            id_remap[s["id"]] = existing.id
+            # Respect is_active from import — do not reinstate a source
+            # that was soft-deleted, and honour explicit active=False
+            import_active = s.get("is_active", True)
+            if existing.is_active != import_active:
+                existing.is_active = import_active
+                session.add(existing)
         else:
             new_src = Source(
                 name=s["name"],
@@ -325,17 +407,18 @@ async def import_data(
                 last_success_at=s.get("last_success_at"),
                 last_entry_count=s.get("last_entry_count"),
                 created_at=s.get("created_at") or datetime.utcnow(),
+                created_by=s.get("created_by", "import"),
             )
             session.add(new_src)
             session.flush()
             id_remap[s["id"]] = new_src.id
             sources_upserted += 1
 
-    # Upsert articles (match on dedup_hash)
+    # Upsert articles (match on dedup_hash) — absent in config-only exports
     existing_hashes = set(
         a.dedup_hash for a in session.exec(select(Article.dedup_hash)).all()
     )
-    for a in data["articles"]:
+    for a in data.get("articles", []):
         if a.get("dedup_hash") in existing_hashes:
             continue
         source_id = id_remap.get(a.get("source_id"), a.get("source_id"))
@@ -377,7 +460,7 @@ async def import_data(
         keywords_upserted += 1
         existing_terms.add(term)
 
-    # Append audit log entries (no dedup)
+    # Append audit log entries (no dedup) — absent in config-only exports
     for e in data.get("audit_log", []):
         new_entry = AuditLog(
             timestamp=e.get("timestamp") or datetime.utcnow(),

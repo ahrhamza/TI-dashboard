@@ -1,5 +1,10 @@
 """
-Seed list of curated cybersecurity sources.
+LEGACY — this file is no longer used for auto-seeding on startup.
+
+New instances should be bootstrapped by importing a previously exported config
+file via Settings > Data > Import. This file is kept as a reference and fallback
+only. The seed_sources() function below is still callable manually if needed.
+
 Tiers: 1=authoritative/government, 2=major vendors & established news,
        3=research blogs, 4=community/aggregators
 """

@@ -3,7 +3,7 @@ SOCFeed backend — FastAPI entry point.
 
 Startup sequence:
   1. Create DB tables
-  2. Seed sources (no-op if already seeded)
+  2. Check if sources table is populated; log guidance if empty
   3. Start APScheduler (poll every 10 min, archive every hour)
   4. Kick off an initial poll so data is available immediately
 """
@@ -15,12 +15,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 
+from sqlalchemy import text
+
 from database import create_db_and_tables, engine
 from feeds import poll_all_sources
-from models import Article, Source
+from models import Source
 from routers import articles, audit, config, data, digest, settings, sources
 from scheduler import create_scheduler
-from sources import seed_sources
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -32,27 +33,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ── Startup helpers ───────────────────────────────────────────────────────────
-
-def _remove_defunct_sources(urls: list[str]) -> None:
-    """Delete sources (and their ingested articles) whose URLs are no longer in
-    the curated seed list. Safe to run on every startup — no-op if already gone."""
-    with Session(engine) as session:
-        for url in urls:
-            source = session.exec(select(Source).where(Source.url == url)).first()
-            if not source:
-                continue
-            deleted = session.exec(
-                select(Article).where(Article.source_id == source.id)
-            ).all()
-            for article in deleted:
-                session.delete(article)
-            session.delete(source)
-            logger.info(
-                f"Removed defunct source '{source.name}' and {len(deleted)} articles"
-            )
-            session.commit()
-
 
 # ── Lifespan ──────────────────────────────────────────────────────────────────
 
@@ -62,14 +42,27 @@ async def lifespan(app: FastAPI):
     logger.info("SOCFeed starting up")
     create_db_and_tables()
 
-    with Session(engine) as session:
-        inserted = seed_sources(session)
-        if inserted:
-            logger.info(f"Seeded {inserted} sources")
+    # Lightweight migrations — add columns that didn't exist in older schema versions
+    with engine.connect() as conn:
+        existing_cols = {
+            row[1]
+            for row in conn.execute(text("PRAGMA table_info(sources)")).fetchall()
+        }
+        if "created_by" not in existing_cols:
+            conn.execute(text("ALTER TABLE sources ADD COLUMN created_by TEXT NOT NULL DEFAULT 'system'"))
+            conn.commit()
+            logger.info("Migration: added sources.created_by column")
 
-    # One-time cleanup: remove sources (and their articles) that are no longer
-    # in the curated seed list. Currently targets ZDNet Security.
-    _remove_defunct_sources(["https://www.zdnet.com/topic/security/rss.xml"])
+    with Session(engine) as session:
+        source_count = len(session.exec(select(Source)).all())
+        if source_count == 0:
+            logger.warning(
+                "No sources found in the database. "
+                "To populate sources, go to Settings > Data and import a previously exported config file, "
+                "or add sources manually via the Sources page."
+            )
+        else:
+            logger.info(f"Loaded {source_count} sources from database")
 
     # Initial poll — runs once at startup so analysts see data immediately
     logger.info("Running initial poll on startup")

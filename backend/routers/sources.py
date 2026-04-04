@@ -111,6 +111,7 @@ def add_source(body: dict, session: Session = Depends(get_session)):
         url=url,
         tier=int(tier),
         feed_type=FeedType(feed_type_raw),
+        created_by=analyst,
     )
     session.add(source)
     session.flush()  # get the assigned id
