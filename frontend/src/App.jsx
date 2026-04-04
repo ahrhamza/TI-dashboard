@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import TopNav from './components/TopNav'
 import Sidebar from './components/Sidebar'
 import FeedList from './components/FeedList'
+import SourcesTable from './components/SourcesTable'
 import UserPrompt from './components/UserPrompt'
 import { useUser } from './hooks/useUser'
 import { fetchArticles, fetchSources, triggerRefresh } from './api'
@@ -9,6 +10,9 @@ import { fetchArticles, fetchSources, triggerRefresh } from './api'
 export default function App() {
   const { name, saveName, hasName } = useUser()
   const [showRename, setShowRename] = useState(false)
+
+  // Page routing
+  const [page, setPage] = useState('feed') // 'feed' | 'sources'
 
   // Theme
   const [darkMode, setDarkMode] = useState(() => {
@@ -123,31 +127,48 @@ export default function App() {
         onChangeName={() => setShowRename(true)}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen(o => !o)}
+        currentPage={page}
+        onPageChange={setPage}
       />
 
       <div className="flex" style={{ paddingTop: '3.5rem' }}>
-        <Sidebar
-          open={sidebarOpen}
-          filters={filters}
-          onFilterChange={setFilters}
-        />
+        {/* Feed page: sidebar + virtualised list */}
+        {page === 'feed' && (
+          <>
+            <Sidebar
+              open={sidebarOpen}
+              filters={filters}
+              onFilterChange={setFilters}
+            />
+            <main
+              style={{
+                flex: 1,
+                minWidth: 0,
+                marginLeft: sidebarOpen ? '16rem' : '0',
+                transition: 'margin-left 0.2s ease',
+              }}
+            >
+              <FeedList
+                articles={filteredArticles}
+                sourceMap={sourceMap}
+                loading={loading}
+                user={name}
+                onUpdate={handleArticleUpdate}
+              />
+            </main>
+          </>
+        )}
 
-        <main
-          style={{
-            flex: 1,
-            minWidth: 0,
-            marginLeft: sidebarOpen ? '16rem' : '0',
-            transition: 'margin-left 0.2s ease',
-          }}
-        >
-          <FeedList
-            articles={filteredArticles}
-            sourceMap={sourceMap}
-            loading={loading}
-            user={name}
-            onUpdate={handleArticleUpdate}
-          />
-        </main>
+        {/* Sources page */}
+        {page === 'sources' && (
+          <main style={{ flex: 1, minWidth: 0 }}>
+            <SourcesTable
+              sources={sources}
+              user={name}
+              onSourcesChange={loadData}
+            />
+          </main>
+        )}
       </div>
     </div>
   )

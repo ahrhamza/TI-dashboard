@@ -56,3 +56,29 @@ export function fetchArticleHistory(id) {
   const params = new URLSearchParams({ target_type: 'article', target_id: String(id), limit: '50' })
   return request(`/audit?${params}`)
 }
+
+export function previewSource(url, feedType = 'rss') {
+  return request('/sources/preview', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ url, feed_type: feedType }),
+  })
+}
+
+export function addSource(name, url, tier, feedType, analyst) {
+  return request('/sources', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ name, url, tier, feed_type: feedType, analyst }),
+  })
+}
+
+export function deleteSource(id, analyst) {
+  return request(`/sources/${id}?analyst=${encodeURIComponent(analyst)}`, {
+    method: 'DELETE',
+  })
+}
+
+export function testSource(id) {
+  return request(`/sources/${id}/test`, { method: 'POST' })
+}

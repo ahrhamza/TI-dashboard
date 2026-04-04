@@ -1,18 +1,21 @@
 """
-Source management endpoints — Phase 1 scope:
-  GET  /api/sources           list sources with health
-  POST /api/refresh           trigger immediate full poll
-
-Phase 3 additions (preview, add, delete) go here when the time comes.
+Source management endpoints.
+  GET    /api/sources              list sources with health + TI count
+  POST   /api/sources/preview      fetch 3 sample items from a URL (no ingest)
+  POST   /api/sources              add a confirmed source
+  DELETE /api/sources/:id          soft-delete a source
+  POST   /api/sources/:id/test     re-fetch 3 samples for an existing source
+  POST   /api/refresh              trigger immediate full poll
 """
 import logging
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from database import engine, get_session
 from feeds import ingest_source, poll_all_sources
-from models import Source
+from models import Article, Source
 
 router = APIRouter(tags=["sources"])
 logger = logging.getLogger(__name__)
@@ -20,9 +23,34 @@ logger = logging.getLogger(__name__)
 
 @router.get("/api/sources")
 def list_sources(session: Session = Depends(get_session)):
-    """Return all sources with their current health state."""
+    """Return all sources with their current health state and unarchived TI count."""
     sources = session.exec(select(Source).order_by(Source.tier, Source.name)).all()
-    return sources
+
+    # Count unarchived articles per source in one query
+    counts_raw = session.exec(
+        select(Article.source_id, func.count(Article.id))
+        .where(Article.archived_at == None)  # noqa: E711
+        .group_by(Article.source_id)
+    ).all()
+    ti_counts = {row[0]: row[1] for row in counts_raw}
+
+    return [
+        {
+            "id": s.id,
+            "name": s.name,
+            "url": s.url,
+            "tier": s.tier,
+            "feed_type": s.feed_type,
+            "is_active": s.is_active,
+            "consecutive_failures": s.consecutive_failures,
+            "last_fetched_at": s.last_fetched_at,
+            "last_success_at": s.last_success_at,
+            "last_entry_count": s.last_entry_count,
+            "created_at": s.created_at,
+            "ti_count": ti_counts.get(s.id, 0),
+        }
+        for s in sources
+    ]
 
 
 @router.post("/api/sources/preview")
@@ -123,6 +151,27 @@ def delete_source(source_id: int, analyst: str = "unknown", session: Session = D
     session.add(audit)
     session.commit()
     return {"ok": True}
+
+
+@router.post("/api/sources/{source_id}/test")
+def test_source(source_id: int, session: Session = Depends(get_session)):
+    """Re-fetch up to 3 sample articles for an existing source. Does not ingest."""
+    from fastapi import HTTPException
+    from feeds import fetch_rss_entries, fetch_json_entries
+    from models import FeedType
+
+    source = session.get(Source, source_id)
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+    try:
+        if source.feed_type == FeedType.rss:
+            entries = fetch_rss_entries(source)
+        else:
+            entries = fetch_json_entries(source)
+        return {"entries": entries[:3], "total_found": len(entries)}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.post("/api/refresh")

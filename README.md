@@ -57,11 +57,13 @@ docker compose up -d --build    # Build and start (detached)
 docker compose up --build       # Start with logs in foreground
 docker compose down             # Stop and remove containers
 docker compose logs -f backend  # Tail backend logs
+
+python export_sources.py        # Sync DB sources → backend/sources.py (run before deploy)
 ```
 
 ---
 
-## Current Features (Phases 1–2b)
+## Current Features (Phases 1–3)
 
 - **33 curated sources** across tiers 1–5 (authoritative vendors through community blogs), polled every 10 minutes
 - **Deduplication** — same article from multiple sources increments a counter rather than creating duplicates
@@ -85,6 +87,13 @@ docker compose logs -f backend  # Tail backend logs
 - **Per-item history** — expandable audit trail on each card (timestamp, analyst, transition)
 - All transitions timestamped, attributed to the analyst name from cookie, written to audit log
 
+**Source management**
+- Table view of all sources with health indicator (green/amber/red dot), tier, feed type, last fetched, last success, entry count, consecutive failures, and count of active TIs per source
+- **Add source** — enter a URL, preview 3 sample articles, set name and tier, confirm; written to audit log
+- **Test** — re-fetch any source on demand and view 3 samples inline without ingesting
+- **Soft-delete** — inline confirmation; stops future ingestion, preserves all historical TIs; written to audit log
+- Filter by status: All / Active / Inactive / Failing
+
 **UI**
 - Light and dark mode — toggled in the nav bar, persisted in `localStorage`
 - Analyst identity — first-visit name prompt stored in a 90-day cookie, rename option in nav bar
@@ -92,11 +101,26 @@ docker compose logs -f backend  # Tail backend logs
 
 ---
 
+## Deploying to a New Environment
+
+The seed source list (`backend/sources.py`) may drift from your local DB as you add or remove sources via the UI. Before committing or deploying, run:
+
+```bash
+python export_sources.py
+```
+
+This reads all active sources from `data/socfeed.db` and rewrites the `SEED_SOURCES` list in `backend/sources.py`. The new environment will then seed from that updated list on first boot.
+
+```bash
+python export_sources.py --db /path/to/socfeed.db   # if the DB is elsewhere
+```
+
+---
+
 ## What's Coming
 
 | Phase | Scope |
 |-------|-------|
-| **3**  | Source management UI — add sources with preview, soft-delete with confirmation, per-source health indicators |
 | **4**  | Settings page — keyword watchlist, audit log viewer, `/digest` print-optimised summary, `ARCHIVE_AFTER_DAYS` configurable from UI |
 | **5**  | Data portability — timestamped JSON export, import with preview diff, destructive "Clear All TIs" with password confirmation |
 

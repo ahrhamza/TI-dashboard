@@ -67,6 +67,8 @@ export default function TopNav({
   onChangeName,
   sidebarOpen,
   onToggleSidebar,
+  currentPage,
+  onPageChange,
 }) {
   return (
     <header
@@ -77,15 +79,17 @@ export default function TopNav({
         borderColor: 'var(--border)',
       }}
     >
-      {/* Sidebar toggle */}
-      <button
-        onClick={onToggleSidebar}
-        className="p-1.5 rounded transition-colors"
-        style={{ color: 'var(--text-secondary)' }}
-        title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-      >
-        <MenuIcon />
-      </button>
+      {/* Sidebar toggle — only on Feed page */}
+      {currentPage === 'feed' && (
+        <button
+          onClick={onToggleSidebar}
+          className="p-1.5 rounded transition-colors"
+          style={{ color: 'var(--text-secondary)' }}
+          title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+        >
+          <MenuIcon />
+        </button>
+      )}
 
       {/* Logo */}
       <span className="font-semibold text-sm tracking-tight" style={{ color: 'var(--text-primary)' }}>
@@ -95,25 +99,29 @@ export default function TopNav({
       {/* Nav links */}
       <nav className="flex items-center gap-0.5 ml-3">
         {[
-          { label: 'Feed',     active: true },
-          { label: 'Sources',  active: false },
-          { label: 'Settings', active: false },
-        ].map(({ label, active }) => (
-          <a
-            key={label}
-            href="#"
-            className="px-3 py-1.5 rounded text-sm transition-colors"
-            style={{
-              color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
-              background: active ? 'var(--accent-subtle)' : 'transparent',
-              fontWeight: active ? '500' : '400',
-              pointerEvents: active ? 'auto' : 'none',
-              opacity: active ? 1 : 0.6,
-            }}
-          >
-            {label}
-          </a>
-        ))}
+          { key: 'feed',     label: 'Feed',     enabled: true },
+          { key: 'sources',  label: 'Sources',  enabled: true },
+          { key: 'settings', label: 'Settings', enabled: false },
+        ].map(({ key, label, enabled }) => {
+          const active = currentPage === key
+          return (
+            <button
+              key={key}
+              onClick={() => enabled && onPageChange(key)}
+              className="px-3 py-1.5 rounded text-sm transition-colors"
+              style={{
+                color: active ? 'var(--accent-text)' : 'var(--text-secondary)',
+                background: active ? 'var(--accent-subtle)' : 'transparent',
+                fontWeight: active ? '500' : '400',
+                cursor: enabled ? 'pointer' : 'default',
+                opacity: enabled ? 1 : 0.4,
+              }}
+              title={!enabled ? 'Coming in Phase 4' : undefined}
+            >
+              {label}
+            </button>
+          )
+        })}
       </nav>
 
       {/* Right cluster */}
