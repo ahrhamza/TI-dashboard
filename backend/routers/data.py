@@ -248,9 +248,7 @@ async def import_preview(
     existing_source_urls = set(
         s.url for s in session.exec(select(Source)).all()
     )
-    existing_dedup_hashes = set(
-        a.dedup_hash for a in session.exec(select(Article.dedup_hash)).all()
-    )
+    existing_dedup_hashes = set(session.exec(select(Article.dedup_hash)).all())
     existing_keyword_terms = set(
         k.term for k in session.exec(select(Keyword)).all()
     )
@@ -331,9 +329,7 @@ async def import_data(
             sources_upserted += 1
 
     # Upsert articles (match on dedup_hash) — absent in config-only exports
-    existing_hashes = set(
-        a.dedup_hash for a in session.exec(select(Article.dedup_hash)).all()
-    )
+    existing_hashes = set(session.exec(select(Article.dedup_hash)).all())
     for a in data.get("articles", []):
         if a.get("dedup_hash") in existing_hashes:
             continue

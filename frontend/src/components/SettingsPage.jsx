@@ -777,7 +777,7 @@ function DataTab({ user, onClearSuccess }) {
           id="import-file-input"
         />
 
-        {!importPreview && !importPreviewing && !importResult && (
+        {!importPreview && !importPreviewing && !importResult && !importError && (
           <label
             htmlFor="import-file-input"
             style={{ ...btnSecondary, cursor: 'pointer' }}
