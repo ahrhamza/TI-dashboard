@@ -3,7 +3,6 @@ Data portability and reset endpoints.
 
 GET  /api/export             — Full JSON export (all data: articles, sources, keywords, audit log)
 GET  /api/export/config      — Config-only JSON export (sources + keywords; for bootstrapping new instances)
-GET  /api/export/sources     — Legacy: download sources.py Python file
 POST /api/import/preview     — Validate a JSON backup (full or config) and return a diff summary
 POST /api/import             — Apply a validated JSON backup (upsert + append); accepts full or config exports
 POST /api/clear              — Wipe articles + audit_log (password-protected)
@@ -11,7 +10,6 @@ POST /api/clear              — Wipe articles + audit_log (password-protected)
 import io
 import logging
 import os
-import re
 from datetime import datetime, date
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
@@ -29,15 +27,6 @@ router = APIRouter(prefix="/api", tags=["data"])
 APP_VERSION = "1.0.0"
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
-
-TIER_LABELS = {
-    1: "Tier 1: Authoritative",
-    2: "Tier 2: Major Vendors & Established News",
-    3: "Tier 3: Research Blogs",
-    4: "Tier 4: Community / Aggregators",
-    5: "Tier 5: Low Signal",
-}
-
 
 def _dt(val) -> str | None:
     """Serialize a datetime (or None) to ISO string."""
@@ -122,69 +111,6 @@ def _build_export(session: Session, analyst: str) -> dict:
             for k in keywords
         ],
     }
-
-
-def _build_sources_py(session: Session) -> str:
-    """Generate sources.py content from all DB rows (active and inactive)."""
-    rows = session.exec(
-        select(Source).order_by(Source.tier, Source.name)
-    ).all()
-
-    lines = [
-        '"""',
-        "Curated source list — auto-generated from DB via GET /api/export/sources.",
-        "Includes all sources (active and soft-deleted) with their is_active status.",
-        "Edit via the Sources UI and use Settings > Data > Export sources.py to download.",
-        '"""',
-        "from sqlmodel import Session, select",
-        "from models import FeedType, Source",
-        "",
-        "",
-        "SEED_SOURCES: list[dict] = [",
-    ]
-
-    current_tier = None
-    for s in rows:
-        if s.tier != current_tier:
-            current_tier = s.tier
-            label = TIER_LABELS.get(s.tier, f"Tier {s.tier}")
-            bar = "─" * (50 - len(label))
-            lines.append(f"    # ── {label} {bar}")
-        lines.append("    {")
-        lines.append(f'        "name": {s.name!r},')
-        lines.append(f'        "url": {s.url!r},')
-        lines.append(f'        "tier": {s.tier},')
-        lines.append(f'        "feed_type": {s.feed_type!r},')
-        lines.append(f'        "is_active": {s.is_active},')
-        lines.append("    },")
-
-    lines.append("]")
-    lines.append("")
-
-    # Append the seed function — legacy, superseded by config import via the UI
-    lines += [
-        "",
-        "def seed_sources(session: Session) -> int:",
-        '    """Insert SEED_SOURCES into the DB if they don\'t already exist. Returns count inserted."""',
-        "    inserted = 0",
-        "    for s in SEED_SOURCES:",
-        "        existing = session.exec(select(Source).where(Source.url == s['url'])).first()",
-        "        if existing:",
-        "            continue",
-        "        source = Source(",
-        "            name=s['name'],",
-        "            url=s['url'],",
-        "            tier=s['tier'],",
-        "            feed_type=FeedType(s['feed_type']),",
-        "            is_active=s.get('is_active', True),",
-        "        )",
-        "        session.add(source)",
-        "        inserted += 1",
-        "    session.commit()",
-        "    return inserted",
-    ]
-
-    return "\n".join(lines) + "\n"
 
 
 def _build_config_export(session: Session, analyst: str) -> dict:
@@ -298,16 +224,6 @@ def export_config(analyst: str = "unknown", session: Session = Depends(get_sessi
         content=content,
         media_type="application/json",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
-
-
-@router.get("/export/sources")
-def export_sources_py(session: Session = Depends(get_session)):
-    content = _build_sources_py(session)
-    return Response(
-        content=content,
-        media_type="text/x-python",
-        headers={"Content-Disposition": 'attachment; filename="sources.py"'},
     )
 
 

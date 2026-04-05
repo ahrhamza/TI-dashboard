@@ -92,7 +92,7 @@ ti-project/
 │       ├── config.py        # Runtime app config (ARCHIVE_AFTER_DAYS)
 │       ├── digest.py        # Standalone HTML digest page (GET /digest)
 │       ├── settings.py      # Keyword watchlist management
-│       └── data.py          # Export (full + config), import, sources.py download, clear all TIs
+│       └── data.py          # Export (full + config), import, clear all TIs
 ├── frontend/
 │   ├── Dockerfile
 │   ├── index.html
@@ -427,7 +427,6 @@ PATCH  /api/config/archive_after_days  # Update archive threshold (min 10, persi
 GET    /digest                      # Standalone HTML digest page (no /api prefix)
 GET    /api/export                  # Full JSON export (download); ?analyst= for attribution
 GET    /api/export/config           # Config-only JSON export (sources + keywords); ?analyst= for attribution
-GET    /api/export/sources          # Download sources.py generated from DB (for reference/migration)
 POST   /api/import/preview          # Upload JSON (full or config), validate, return diff counts (no write)
 POST   /api/import                  # Upload JSON (full or config) + apply (multipart: file + analyst fields)
 POST   /api/clear                   # Wipe articles + audit log (requires password in body)

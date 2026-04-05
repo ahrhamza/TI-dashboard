@@ -110,7 +110,6 @@ docker compose logs -f backend  # Tail backend logs
 
 **Data portability (Settings > Data)**
 - **Export Data** — downloads a timestamped `socfeed_export_YYYY-MM-DD.json` containing all sources (including soft-deleted), articles with full status/notes/tickets, audit log, and keywords; export is attributed to the analyst and written to the audit log
-- **Export sources.py** — downloads a `sources.py` generated on-the-fly from the DB; useful as a migration reference or for bootstrapping a fresh instance without a full data export
 - **Import** — upload a previously exported JSON file; shows a preview diff (new TIs / sources / keywords to be added) before confirming; sources and keywords are upserted, articles upserted on dedup hash, audit log entries appended; import is written to the audit log
 - **Clear All TIs** — two-step destructive reset: confirmation dialog followed by password prompt (matches `CLEAR_PASSWORD` in `.env`); deletes all articles and audit log entries, preserves sources and keywords; feed reloads to empty state after clear
 
