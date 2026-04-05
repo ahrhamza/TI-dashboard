@@ -244,7 +244,7 @@ def ingest_source(source: Source, session: Session) -> int:
                 target_id=source.id,
                 target_type="source",
                 detail=(
-                    f"Auto-disabled after 3 consecutive failures. "
+                    f"Auto-disabled '{source.name}' after 3 consecutive failures. "
                     f"Last error: {str(exc)[:200]}"
                 ),
             )
