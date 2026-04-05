@@ -343,7 +343,7 @@ Every significant action produces an audit entry:
 | `ticket_raised`    | Ticket ID recorded on a TI             |
 | `source_added`     | New source confirmed and saved          |
 | `source_deleted`   | Source soft-deleted                     |
-| `source_disabled`  | Auto-disabled after 3 failures          |
+| `source_disabled`  | Auto-disabled after 3 failures; detail includes source name and last error |
 | `manual_refresh`   | Refresh button pressed                  |
 | `keyword_added`    | Watchlist term added                    |
 | `keyword_removed`  | Watchlist term removed                  |
