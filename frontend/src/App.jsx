@@ -6,7 +6,7 @@ import SourcesTable from './components/SourcesTable'
 import SettingsPage from './components/SettingsPage'
 import UserPrompt from './components/UserPrompt'
 import { useUser } from './hooks/useUser'
-import { fetchArticle, fetchArticles, fetchSources, triggerRefresh } from './api'
+import { fetchArticle, fetchArticles, fetchSources, fetchKeywords, triggerRefresh } from './api'
 
 export default function App() {
   const { name, saveName, hasName } = useUser()
@@ -24,9 +24,19 @@ export default function App() {
     localStorage.setItem('socfeed_theme', darkMode ? 'dark' : 'light')
   }, [darkMode])
 
+  // Timestamp display preference — persisted per analyst in localStorage
+  const [tsMode, setTsMode] = useState(() => {
+    return localStorage.getItem('socfeed_ts_mode') || 'both'
+  })
+  const handleTsModeChange = (mode) => {
+    setTsMode(mode)
+    localStorage.setItem('socfeed_ts_mode', mode)
+  }
+
   // Data
   const [articles, setArticles] = useState([])
   const [sources, setSources] = useState([])
+  const [keywords, setKeywords] = useState([]) // array of term strings
   const [loading, setLoading] = useState(true)
   const [lastRefreshed, setLastRefreshed] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -36,43 +46,39 @@ export default function App() {
 
   // Filters — showIrrelevant/showArchived drive API calls; rest are client-side
   const [filters, setFilters] = useState({
-    severity: '',
-    status: '',
-    tier: '',
-    keywordFlag: false,
+    severity: [],        // array of selected severity strings
+    status: [],          // array of selected status strings
+    tier: [],            // array of selected tier strings ('1'–'5')
+    sources: [],         // array of selected source IDs (numbers)
+    keywordMode: 'all',  // 'all' | 'keyword_only' | 'highlight'
     showIrrelevant: false,
     showArchived: false,
   })
 
   // Spotlight — used when navigating to a specific article from the audit log.
-  // spotlightId:   the article ID to scroll to and highlight.
-  // pinnedArticle: an article fetched on-demand that isn't in the current list
-  //                (e.g. irrelevant with showIrrelevant off). It's injected into
-  //                filteredArticles so the card is visible while spotlit.
-  // Spotlight persists until the analyst dismisses it or navigates away.
   const [spotlightId, setSpotlightId] = useState(null)
   const [pinnedArticle, setPinnedArticle] = useState(null)
 
   const loadData = useCallback(async () => {
     try {
-      const [arts, srcs] = await Promise.all([
+      const [arts, srcs, kwds] = await Promise.all([
         fetchArticles({
-          // Include irrelevant items when the status filter targets them,
-          // or when the sidebar toggle is explicitly on.
-          showIrrelevant: filters.showIrrelevant || filters.status === 'IRRELEVANT',
+          showIrrelevant: filters.showIrrelevant || filters.status.includes('IRRELEVANT'),
           showArchived: filters.showArchived,
         }),
         fetchSources(),
+        fetchKeywords(),
       ])
       setArticles(arts)
       setSources(srcs)
+      setKeywords(kwds.map(k => k.term))
       setLastRefreshed(new Date())
     } catch (err) {
       console.error('Failed to load data:', err)
     } finally {
       setLoading(false)
     }
-  // status is a dep so switching to the IRRELEVANT filter triggers a fresh fetch.
+  // status is a dep so switching to/from IRRELEVANT filter triggers a fresh fetch.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.showIrrelevant, filters.showArchived, filters.status])
 
@@ -82,7 +88,6 @@ export default function App() {
 
   const handleArticleUpdate = (updatedArticle) => {
     setArticles(prev => prev.map(a => a.id === updatedArticle.id ? updatedArticle : a))
-    // Keep pinnedArticle in sync if it was updated
     if (pinnedArticle?.id === updatedArticle.id) setPinnedArticle(updatedArticle)
   }
 
@@ -98,16 +103,10 @@ export default function App() {
     }
   }
 
-  // Navigate to a specific article from the audit log.
-  // Switches to the feed page, ensures the article is visible (fetching it if
-  // necessary to bypass active filters), then highlights and scrolls to it.
-  // The spotlight persists until the analyst dismisses it or navigates away.
   const navigateToArticle = useCallback(async (id) => {
     setPage('feed')
     setSpotlightId(id)
 
-    // If the article isn't in the current list (filtered out or archived),
-    // fetch it individually so we can surface it temporarily.
     const inList = articles.find(a => a.id === id)
     if (!inList) {
       try {
@@ -126,8 +125,6 @@ export default function App() {
     setPinnedArticle(null)
   }, [])
 
-  // Clear spotlight when navigating away from the feed page.
-  // Returning to feed after visiting Sources/Settings starts clean.
   const handlePageChange = (newPage) => {
     if (newPage !== 'feed') {
       setSpotlightId(null)
@@ -145,13 +142,14 @@ export default function App() {
     const filtered = articles.filter(a => {
       // Always include the spotlit article regardless of active filters
       if (spotlightId && a.id === spotlightId) return true
-      if (filters.severity && a.severity !== filters.severity) return false
-      if (filters.status && a.status !== filters.status) return false
-      if (filters.keywordFlag && !a.keyword_matches) return false
-      if (filters.tier) {
+      if (filters.severity.length && !filters.severity.includes(a.severity)) return false
+      if (filters.status.length && !filters.status.includes(a.status)) return false
+      if (filters.keywordMode === 'keyword_only' && !a.keyword_matches) return false
+      if (filters.tier.length) {
         const src = sourceMap[a.source_id]
-        if (!src || src.tier !== parseInt(filters.tier, 10)) return false
+        if (!src || !filters.tier.includes(String(src.tier))) return false
       }
+      if (filters.sources.length && !filters.sources.includes(a.source_id)) return false
       return true
     })
 
@@ -169,7 +167,10 @@ export default function App() {
     }
 
     return filtered
-  }, [articles, filters.severity, filters.status, filters.tier, filters.keywordFlag, sourceMap, spotlightId, pinnedArticle])
+  }, [articles, filters.severity, filters.status, filters.tier, filters.keywordMode, filters.sources, sourceMap, spotlightId, pinnedArticle])
+
+  // Only pass keywords to cards when highlight mode is active
+  const highlightKeywords = filters.keywordMode === 'highlight' ? keywords : []
 
   return (
     <div style={{ background: 'var(--bg-page)', color: 'var(--text-primary)', minHeight: '100vh' }}>
@@ -196,6 +197,8 @@ export default function App() {
         onToggleSidebar={() => setSidebarOpen(o => !o)}
         currentPage={page}
         onPageChange={handlePageChange}
+        tsMode={tsMode}
+        onTsModeChange={handleTsModeChange}
       />
 
       <div className="flex" style={{ paddingTop: '3.5rem' }}>
@@ -206,6 +209,7 @@ export default function App() {
               open={sidebarOpen}
               filters={filters}
               onFilterChange={setFilters}
+              sources={sources}
             />
             <main
               style={{
@@ -223,6 +227,8 @@ export default function App() {
                 onUpdate={handleArticleUpdate}
                 spotlightId={spotlightId}
                 onDismissSpotlight={clearSpotlight}
+                highlightKeywords={highlightKeywords}
+                tsMode={tsMode}
               />
             </main>
           </>

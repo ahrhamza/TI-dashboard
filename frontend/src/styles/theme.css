@@ -40,6 +40,10 @@
     --sev-high-bg:     #FFF7ED;
     --sev-critical-bg: #FFF1F2;
 
+    /* Keyword highlight */
+    --keyword-highlight:      rgba(251, 191, 36, 0.35);
+    --keyword-highlight-text: #92400E;
+
     /* Lifecycle status */
     --status-ingested-color:       #94A3B8;
     --status-ingested-bg:          #F1F5F9;
@@ -89,6 +93,9 @@
     --status-resolved-bg:          #022C22;
     --status-irrelevant-color:     #475569;
     --status-irrelevant-bg:        #1E293B;
+
+    --keyword-highlight:      rgba(251, 191, 36, 0.2);
+    --keyword-highlight-text: #FCD34D;
   }
 
   * {

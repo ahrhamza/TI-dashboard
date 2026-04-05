@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 const SEV_DOT = {
   critical: 'var(--sev-critical)',
   high:     'var(--sev-high)',
@@ -7,7 +9,6 @@ const SEV_DOT = {
 }
 
 const SEVERITY_OPTIONS = [
-  { value: '',         label: 'All' },
   { value: 'critical', label: 'Critical', dot: SEV_DOT.critical },
   { value: 'high',     label: 'High',     dot: SEV_DOT.high },
   { value: 'medium',   label: 'Medium',   dot: SEV_DOT.medium },
@@ -16,7 +17,6 @@ const SEVERITY_OPTIONS = [
 ]
 
 const STATUS_OPTIONS = [
-  { value: '',              label: 'All' },
   { value: 'INGESTED',      label: 'Ingested' },
   { value: 'TO_ADDRESS',    label: 'To Address' },
   { value: 'TICKET_RAISED', label: 'Ticket Raised' },
@@ -25,7 +25,6 @@ const STATUS_OPTIONS = [
 ]
 
 const TIER_OPTIONS = [
-  { value: '', label: 'All' },
   { value: '1', label: 'Tier 1' },
   { value: '2', label: 'Tier 2' },
   { value: '3', label: 'Tier 3' },
@@ -33,25 +32,57 @@ const TIER_OPTIONS = [
   { value: '5', label: 'Tier 5' },
 ]
 
+const KEYWORD_MODE_OPTIONS = [
+  { value: 'all',          label: 'All articles' },
+  { value: 'keyword_only', label: 'Keyword matches only' },
+  { value: 'highlight',    label: 'Highlight matches' },
+]
+
 function hasActiveFilters(f) {
-  return f.severity || f.status || f.tier || f.keywordFlag || f.showIrrelevant || f.showArchived
+  return (
+    f.severity.length > 0 ||
+    f.status.length > 0 ||
+    f.tier.length > 0 ||
+    f.sources.length > 0 ||
+    f.keywordMode !== 'all' ||
+    f.showIrrelevant ||
+    f.showArchived
+  )
 }
 
-export default function Sidebar({ open, filters, onFilterChange }) {
+export default function Sidebar({ open, filters, onFilterChange, sources }) {
+  const [sourceSearch, setSourceSearch] = useState('')
+
   function set(key, value) {
     onFilterChange(prev => ({ ...prev, [key]: value }))
   }
 
+  function toggleMulti(key, value) {
+    onFilterChange(prev => {
+      const arr = prev[key]
+      return {
+        ...prev,
+        [key]: arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value],
+      }
+    })
+  }
+
   function clearAll() {
     onFilterChange({
-      severity: '',
-      status: '',
-      tier: '',
-      keywordFlag: false,
+      severity: [],
+      status: [],
+      tier: [],
+      sources: [],
+      keywordMode: 'all',
       showIrrelevant: false,
       showArchived: false,
     })
+    setSourceSearch('')
   }
+
+  const filteredSources = (sources || []).filter(s =>
+    s.name.toLowerCase().includes(sourceSearch.toLowerCase())
+  )
 
   return (
     <aside
@@ -63,7 +94,6 @@ export default function Sidebar({ open, filters, onFilterChange }) {
         borderRight: open ? '1px solid var(--border)' : 'none',
       }}
     >
-      {/* Render content only when open to avoid tab-focus issues */}
       {open && (
         <div style={{ minWidth: '16rem' }} className="p-4">
           {/* Header */}
@@ -85,46 +115,118 @@ export default function Sidebar({ open, filters, onFilterChange }) {
             )}
           </div>
 
-          <FilterSection title="Severity">
-            {SEVERITY_OPTIONS.map(opt => (
-              <RadioOption
-                key={opt.value}
-                label={opt.label}
-                dot={opt.dot}
-                active={filters.severity === opt.value}
-                onClick={() => set('severity', opt.value)}
-              />
-            ))}
-          </FilterSection>
+          <MultiFilterSection
+            title="Severity"
+            options={SEVERITY_OPTIONS}
+            selected={filters.severity}
+            onToggle={v => toggleMulti('severity', v)}
+            onClear={() => set('severity', [])}
+          />
 
-          <FilterSection title="Status">
-            {STATUS_OPTIONS.map(opt => (
-              <RadioOption
-                key={opt.value}
-                label={opt.label}
-                active={filters.status === opt.value}
-                onClick={() => set('status', opt.value)}
-              />
-            ))}
-          </FilterSection>
+          <MultiFilterSection
+            title="Status"
+            options={STATUS_OPTIONS}
+            selected={filters.status}
+            onToggle={v => toggleMulti('status', v)}
+            onClear={() => set('status', [])}
+          />
 
-          <FilterSection title="Source Tier">
-            {TIER_OPTIONS.map(opt => (
-              <RadioOption
-                key={opt.value}
-                label={opt.label}
-                active={filters.tier === opt.value}
-                onClick={() => set('tier', opt.value)}
-              />
-            ))}
-          </FilterSection>
+          <MultiFilterSection
+            title="Source Tier"
+            options={TIER_OPTIONS}
+            selected={filters.tier}
+            onToggle={v => toggleMulti('tier', v)}
+            onClear={() => set('tier', [])}
+          />
 
-          <FilterSection title="Flags">
-            <CheckOption
-              label="Keyword matches only"
-              checked={filters.keywordFlag}
-              onChange={v => set('keywordFlag', v)}
+          {/* Source filter */}
+          <FilterSection title="Source">
+            <input
+              type="text"
+              placeholder="Search sources…"
+              value={sourceSearch}
+              onChange={e => setSourceSearch(e.target.value)}
+              className="w-full text-xs px-2 py-1 rounded border mb-1.5"
+              style={{
+                borderColor: 'var(--border)',
+                background: 'var(--bg-page)',
+                color: 'var(--text-primary)',
+                outline: 'none',
+              }}
             />
+            {/* "All sources" clears selection */}
+            <button
+              onClick={() => { set('sources', []); setSourceSearch('') }}
+              className="flex items-center gap-2 w-full text-left px-2 py-1 rounded text-xs mb-0.5 transition-colors"
+              style={{
+                background: !filters.sources.length ? 'var(--accent-subtle)' : 'transparent',
+                color: !filters.sources.length ? 'var(--accent)' : 'var(--text-secondary)',
+                fontWeight: !filters.sources.length ? '500' : '400',
+              }}
+            >
+              All sources
+              {filters.sources.length > 0 && (
+                <span
+                  className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full"
+                  style={{ background: 'var(--accent)', color: '#fff' }}
+                >
+                  {filters.sources.length}
+                </span>
+              )}
+            </button>
+            {/* Source list */}
+            <div style={{ maxHeight: '11rem', overflowY: 'auto' }}>
+              {filteredSources.map(src => {
+                const active = filters.sources.includes(src.id)
+                return (
+                  <button
+                    key={src.id}
+                    onClick={() => toggleMulti('sources', src.id)}
+                    className="flex items-center gap-1.5 w-full text-left px-2 py-1 rounded text-xs transition-colors"
+                    style={{
+                      background: active ? 'var(--accent-subtle)' : 'transparent',
+                      color: active ? 'var(--accent)' : 'var(--text-secondary)',
+                      fontWeight: active ? '500' : '400',
+                    }}
+                  >
+                    <span
+                      className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                      style={{ background: active ? 'var(--accent)' : 'var(--border)' }}
+                    />
+                    <span className="truncate flex-1">{src.name}</span>
+                    <span
+                      className="text-[10px] font-mono flex-shrink-0"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      T{src.tier}
+                    </span>
+                  </button>
+                )
+              })}
+              {filteredSources.length === 0 && (
+                <p className="text-xs px-2 py-1" style={{ color: 'var(--text-muted)' }}>
+                  No sources found
+                </p>
+              )}
+            </div>
+          </FilterSection>
+
+          {/* Keyword mode */}
+          <FilterSection title="Keywords">
+            {KEYWORD_MODE_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => set('keywordMode', opt.value)}
+                className="flex items-center gap-2 w-full text-left px-2 py-1 rounded text-xs transition-colors"
+                style={{
+                  background: filters.keywordMode === opt.value ? 'var(--accent-subtle)' : 'transparent',
+                  color: filters.keywordMode === opt.value ? 'var(--accent)' : 'var(--text-secondary)',
+                  fontWeight: filters.keywordMode === opt.value ? '500' : '400',
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
           </FilterSection>
 
           <FilterSection title="Hidden Items">
@@ -159,32 +261,63 @@ function FilterSection({ title, children }) {
   )
 }
 
-function RadioOption({ label, active, onClick, dot }) {
+function MultiFilterSection({ title, options, selected, onToggle, onClear }) {
+  const allActive = selected.length === 0
   return (
-    <button
-      onClick={onClick}
-      className="flex items-center gap-2 w-full text-left px-2 py-1 rounded text-sm transition-colors"
-      style={{
-        background: active ? 'var(--accent-subtle)' : 'transparent',
-        color: active ? 'var(--accent)' : 'var(--text-secondary)',
-        fontWeight: active ? '500' : '400',
-      }}
-    >
-      {dot && (
-        <span
-          className="w-2 h-2 rounded-full flex-shrink-0"
-          style={{ background: dot }}
-        />
-      )}
-      {label}
-    </button>
+    <FilterSection title={title}>
+      <button
+        onClick={onClear}
+        className="flex items-center gap-2 w-full text-left px-2 py-1 rounded text-xs transition-colors"
+        style={{
+          background: allActive ? 'var(--accent-subtle)' : 'transparent',
+          color: allActive ? 'var(--accent)' : 'var(--text-secondary)',
+          fontWeight: allActive ? '500' : '400',
+        }}
+      >
+        All
+        {selected.length > 0 && (
+          <span
+            className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full"
+            style={{ background: 'var(--accent)', color: '#fff' }}
+          >
+            {selected.length}
+          </span>
+        )}
+      </button>
+      {options.map(opt => {
+        const active = selected.includes(opt.value)
+        return (
+          <button
+            key={opt.value}
+            onClick={() => onToggle(opt.value)}
+            className="flex items-center gap-2 w-full text-left px-2 py-1 rounded text-xs transition-colors"
+            style={{
+              background: active ? 'var(--accent-subtle)' : 'transparent',
+              color: active ? 'var(--accent)' : 'var(--text-secondary)',
+              fontWeight: active ? '500' : '400',
+            }}
+          >
+            {opt.dot && (
+              <span
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ background: opt.dot }}
+              />
+            )}
+            <span className="flex-1">{opt.label}</span>
+            {active && (
+              <span style={{ color: 'var(--accent)', fontSize: '0.65rem' }}>✓</span>
+            )}
+          </button>
+        )
+      })}
+    </FilterSection>
   )
 }
 
 function CheckOption({ label, checked, onChange }) {
   return (
     <label
-      className="flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-sm select-none"
+      className="flex items-center gap-2 px-2 py-1 rounded cursor-pointer text-xs select-none"
       style={{ color: 'var(--text-secondary)' }}
     >
       <input

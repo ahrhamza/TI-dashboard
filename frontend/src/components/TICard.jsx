@@ -45,6 +45,58 @@ function formatDateTime(dateStr) {
   })
 }
 
+// Returns the date/time portion for the "datetime" or "both" tsMode.
+// Same-day items show HH:MM; older items show "Apr 3".
+function formatDatePart(dateStr) {
+  if (!dateStr) return ''
+  const d = parseUTC(dateStr)
+  const now = new Date()
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  if (sameDay) {
+    return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false })
+  }
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+// Returns the display string for a timestamp according to the current tsMode.
+function formatTimestamp(dateStr, tsMode) {
+  if (!dateStr) return '—'
+  if (tsMode === 'relative') return relativeTime(dateStr)
+  const datePart = formatDatePart(dateStr)
+  if (tsMode === 'datetime') return datePart
+  // 'both' (default)
+  return `${datePart} · ${relativeTime(dateStr)}`
+}
+
+// Splits text and wraps matched keyword spans with a highlight mark.
+// Returns an array of strings/JSX elements suitable for rendering inside a tag.
+function highlightText(text, keywords) {
+  if (!keywords?.length || !text) return text
+  const escaped = keywords.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const regex = new RegExp(`(${escaped.join('|')})`, 'gi')
+  const parts = text.split(regex)
+  return parts.map((part, i) =>
+    i % 2 === 1
+      ? (
+        <mark
+          key={i}
+          style={{
+            background: 'var(--keyword-highlight)',
+            color: 'var(--keyword-highlight-text)',
+            borderRadius: '2px',
+            padding: '0 1px',
+          }}
+        >
+          {part}
+        </mark>
+      )
+      : part
+  )
+}
+
 // If ticketId is purely numeric (optionally prefixed with #), return the work order URL.
 function ticketUrl(ticketId) {
   if (!ticketId) return null
@@ -84,7 +136,7 @@ function getForwardAction(status) {
   }
 }
 
-export default function TICard({ article, source, user, onUpdate, highlighted, onDismissSpotlight }) {
+export default function TICard({ article, source, user, onUpdate, highlighted, onDismissSpotlight, highlightKeywords, tsMode = 'both' }) {
   const [saving, setSaving]             = useState(false)
   // 'TICKET_RAISED' | 'RESOLVED' | null — inline status prompt state
   const [pendingStatus, setPending]     = useState(null)
@@ -256,7 +308,7 @@ export default function TICard({ article, source, user, onUpdate, highlighted, o
           style={{ color: 'var(--text-muted)', marginLeft: 'auto' }}
           title={formatDateTime(article.published_at)}
         >
-          {relativeTime(article.published_at)}
+          {formatTimestamp(article.published_at, tsMode)}
         </span>
 
         {highlighted && onDismissSpotlight && (
@@ -293,12 +345,16 @@ export default function TICard({ article, source, user, onUpdate, highlighted, o
           className="block text-sm font-medium leading-snug hover:underline"
           style={{ color: 'var(--text-primary)' }}
         >
-          {article.title}
+          {highlightKeywords?.length
+            ? highlightText(article.title, highlightKeywords)
+            : article.title}
         </a>
 
         {article.summary && (
           <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-            {article.summary}
+            {highlightKeywords?.length
+              ? highlightText(article.summary, highlightKeywords)
+              : article.summary}
           </p>
         )}
 

@@ -57,6 +57,12 @@ function formatLastRefreshed(date) {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+const TS_MODE_OPTIONS = [
+  { value: 'relative', label: 'Rel',  title: 'Relative only (e.g. 3h ago)' },
+  { value: 'datetime', label: 'Date', title: 'Time/date only (e.g. 09:42 or Apr 3)' },
+  { value: 'both',     label: 'Both', title: 'Time/date + relative (default)' },
+]
+
 export default function TopNav({
   darkMode,
   onToggleDark,
@@ -69,6 +75,8 @@ export default function TopNav({
   onToggleSidebar,
   currentPage,
   onPageChange,
+  tsMode,
+  onTsModeChange,
 }) {
   return (
     <header
@@ -150,6 +158,28 @@ export default function TopNav({
           <RefreshIcon spinning={refreshing} />
           <span className="hidden sm:inline">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
         </button>
+
+        {/* Timestamp mode toggle */}
+        <div
+          className="flex items-center rounded-md overflow-hidden border hidden sm:flex"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          {TS_MODE_OPTIONS.map(({ value, label, title }) => (
+            <button
+              key={value}
+              onClick={() => onTsModeChange(value)}
+              className="px-2 py-1 text-[11px] font-medium transition-colors"
+              style={{
+                background: tsMode === value ? 'var(--accent-subtle)' : 'transparent',
+                color: tsMode === value ? 'var(--accent)' : 'var(--text-secondary)',
+                borderRight: value !== 'both' ? '1px solid var(--border)' : 'none',
+              }}
+              title={title}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
         {/* Dark mode toggle */}
         <button
