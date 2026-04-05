@@ -65,7 +65,7 @@ python export_sources.py        # Sync DB sources → backend/sources.py (run be
 
 ---
 
-## Features (Phases 1–5)
+## Features (Phases 1–6)
 
 - **33 curated sources** across tiers 1–5 (authoritative vendors through community blogs), polled every 10 minutes
 - **Deduplication** — same article from multiple sources increments a counter rather than creating duplicates
@@ -76,7 +76,9 @@ python export_sources.py        # Sync DB sources → backend/sources.py (run be
 - Virtualised list, newest first, with source name, tier badge, severity badge, keyword match tags, multi-source counter
 - Article title (external link) and 160-char summary
 - Ticket ID and notes displayed inline on the card when present
-- Sidebar filters: severity, lifecycle status, source tier, keyword flag, show irrelevant / archived toggles — status filter triggers a fresh fetch
+- Sidebar filters: all multi-select toggle style — severity, lifecycle status, source tier (select multiple simultaneously; "All" clears); dedicated source filter with search input; keyword mode (All / Keyword matches only / Highlight matches); show irrelevant / archived toggles
+- **Timestamp display** — context-aware: same-day items show `HH:MM · Xh ago`, older items show `Apr 3 · 2d ago`; three-mode toggle (Rel / Date / Both) in the nav bar, persisted per analyst in `localStorage`
+- **Keyword highlight mode** — when active, all watchlist terms are highlighted inline in article titles and summaries (amber mark, case-insensitive, multiple matches per card)
 
 **Full TI lifecycle**
 - **Mark Irrelevant** — available from any status at any time; card fades to indicate state

@@ -305,10 +305,11 @@ Each card in the feed queue displays:
 ## Feed Queue — Display & Ordering
 
 - Default sort: **chronological, newest first** by `published_at`
-- Filters available: severity, lifecycle status, source tier, keyword match flag
+- Filters: severity (multi-select), lifecycle status (multi-select), source tier (multi-select), source (searchable multi-select), keyword mode (All / Keyword matches only / Highlight matches)
 - "Show irrelevant" toggle (off by default)
 - "Show archived" toggle (off by default)
 - Refresh button in header triggers on-demand poll and shows last-refreshed timestamp
+- Timestamp display toggle in nav bar: Rel / Date / Both — persisted in `localStorage`
 
 ---
 
@@ -459,6 +460,7 @@ POST   /api/clear                   # Wipe articles + audit log (requires passwo
 | 3 | Source management ✓ | Source list with health indicators (green/amber/red dot), TI count per source, add-with-preview (3 samples), soft-delete with inline confirmation, per-source test button; `export_sources.py` (legacy) syncs DB state back to `sources.py` — superseded by config import via Settings > Data |
 | 4 | Settings page ✓ | Keyword watchlist (add/delete, attributed to analyst, audit logged), audit log table (filterable by user/action/date, article targets link back to feed card with spotlight), `/digest` standalone HTML page (grouped by severity, print-optimised), `ARCHIVE_AFTER_DAYS` configurable from UI (persisted to `app_config` DB table, 10-day minimum enforced) |
 | 5 | Data portability & reset ✓ | Import/export and destructive data controls in Settings > Data tab (see below) |
+| 6 | UI polish & filter improvements ✓ | Multi-select filters, source filter, keyword highlight mode, context-aware timestamps (see below) |
 
 ### Phase 5 — Data Portability & Reset
 
@@ -487,4 +489,33 @@ POST   /api/clear                   # Wipe articles + audit log (requires passwo
 - Does **not** delete sources or keywords
 - Writes a final audit entry before deletion: `clear_all | user | timestamp` (this entry survives since it's written to a separate log or output to server stdout)
 - Intended for starting a fresh intelligence cycle, not routine use
+
+---
+
+### Phase 6 — UI Polish & Filter Improvements
+
+**Multi-select filters**
+- Severity, Status, and Source Tier filters changed from single-select radio to toggle-based multi-select
+- Click a value to add it to the active set; click again to remove it; multiple values can be active simultaneously (e.g. Critical + High, or TO_ADDRESS + TICKET_RAISED)
+- "All" button clears the selection and returns to unfiltered; a count badge on "All" shows how many values are currently selected
+- Filter state stored as arrays: `severity: []`, `status: []`, `tier: []`
+
+**Source filter**
+- New "Source" section in the sidebar with a text search input and scrollable list of all sources
+- Each source shows name (truncated) and tier badge; searchable by typing
+- Multi-select: any number of sources can be active simultaneously
+- "All sources" clears the selection; count badge reflects how many sources are filtered to
+
+**Keyword highlight mode**
+- Keywords filter replaced with a three-option radio: "All articles" / "Keyword matches only" / "Highlight matches"
+- "Keyword matches only" behaves like the old keyword flag (hides articles without matches)
+- "Highlight matches" shows all articles but wraps every watchlist term found in the title or summary in an amber `<mark>` (case-insensitive, multiple matches per card, distinct in light and dark mode)
+- Watchlist terms fetched from the API at load time alongside articles and sources
+
+**Timestamp display**
+- Timestamps changed from relative-only to context-aware:
+  - Same day: `09:42 · 3h ago`
+  - Different day: `Apr 3 · 2d ago`
+- Three-mode toggle in the nav bar — **Rel** (relative only), **Date** (time or date only), **Both** (default)
+- Persisted in `localStorage` per analyst; applied immediately without reload
 
