@@ -59,8 +59,6 @@ docker compose up -d --build    # Build and start (detached)
 docker compose up --build       # Start with logs in foreground
 docker compose down             # Stop and remove containers
 docker compose logs -f backend  # Tail backend logs
-
-python export_sources.py        # Sync DB sources → backend/sources.py (run before deploy)
 ```
 
 ---
@@ -112,7 +110,7 @@ python export_sources.py        # Sync DB sources → backend/sources.py (run be
 
 **Data portability (Settings > Data)**
 - **Export Data** — downloads a timestamped `socfeed_export_YYYY-MM-DD.json` containing all sources (including soft-deleted), articles with full status/notes/tickets, audit log, and keywords; export is attributed to the analyst and written to the audit log
-- **Export sources.py** — downloads a ready-to-deploy `sources.py` reflecting the current active sources in the DB; equivalent to running `export_sources.py` from the terminal
+- **Export sources.py** — downloads a `sources.py` generated on-the-fly from the DB; useful as a migration reference or for bootstrapping a fresh instance without a full data export
 - **Import** — upload a previously exported JSON file; shows a preview diff (new TIs / sources / keywords to be added) before confirming; sources and keywords are upserted, articles upserted on dedup hash, audit log entries appended; import is written to the audit log
 - **Clear All TIs** — two-step destructive reset: confirmation dialog followed by password prompt (matches `CLEAR_PASSWORD` in `.env`); deletes all articles and audit log entries, preserves sources and keywords; feed reloads to empty state after clear
 
@@ -120,16 +118,9 @@ python export_sources.py        # Sync DB sources → backend/sources.py (run be
 
 ## Deploying to a New Environment
 
-The seed source list (`backend/sources.py`) may drift from your local DB as you add or remove sources via the UI. Before committing or deploying, either run the CLI script or use the in-app export:
+To migrate intelligence state to a new instance, use **Settings > Data > Export Data** to produce a full JSON snapshot, then **Import** on the new instance.
 
-```bash
-python export_sources.py
-# or: python export_sources.py --db /path/to/socfeed.db
-```
-
-Alternatively, use **Settings > Data > Export sources.py** to download the file directly from the browser.
-
-To migrate intelligence state to a new instance, use **Export Data** to produce a full JSON snapshot, then **Import** on the new instance.
+To migrate sources and keywords only (without TI history), use **Export Config** and import that instead.
 
 ---
 

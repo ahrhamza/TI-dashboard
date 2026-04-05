@@ -125,16 +125,16 @@ def _build_export(session: Session, analyst: str) -> dict:
 
 
 def _build_sources_py(session: Session) -> str:
-    """Generate the full sources.py content from all DB rows (active and inactive)."""
+    """Generate sources.py content from all DB rows (active and inactive)."""
     rows = session.exec(
         select(Source).order_by(Source.tier, Source.name)
     ).all()
 
     lines = [
         '"""',
-        "Curated source list — auto-generated from DB via export_sources.py / /api/export/sources.",
+        "Curated source list — auto-generated from DB via GET /api/export/sources.",
         "Includes all sources (active and soft-deleted) with their is_active status.",
-        "Edit via the Sources UI; run export_sources.py (or use the Export button) before deploying.",
+        "Edit via the Sources UI and use Settings > Data > Export sources.py to download.",
         '"""',
         "from sqlmodel import Session, select",
         "from models import FeedType, Source",

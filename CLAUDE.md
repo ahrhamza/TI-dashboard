@@ -76,8 +76,6 @@ ti-project/
 ├── docker-compose.yml
 ├── .env.example
 ├── sources_default.json     # Default config snapshot (sources + keywords) — import via Settings > Data on first boot
-├── export_sources.py        # Legacy: Sync DB → backend/sources.py (superseded by UI config import)
-├── validate_sources.py      # One-off feed reachability check
 ├── nginx/
 │   └── default.conf
 ├── backend/
@@ -86,7 +84,6 @@ ti-project/
 │   ├── main.py              # FastAPI app entry point + APScheduler init
 │   ├── models.py            # SQLModel table definitions
 │   ├── feeds.py             # RSS/JSON fetch, parse, dedup, ingest
-│   ├── sources.py           # Legacy seed file — superseded by config import via Settings > Data
 │   ├── scheduler.py         # Cron job definitions
 │   └── routers/
 │       ├── articles.py      # CRUD + lifecycle transitions for TI items
@@ -95,7 +92,7 @@ ti-project/
 │       ├── config.py        # Runtime app config (ARCHIVE_AFTER_DAYS)
 │       ├── digest.py        # Standalone HTML digest page (GET /digest)
 │       ├── settings.py      # Keyword watchlist management
-│       └── data.py          # Export, import, sources.py export, clear all TIs
+│       └── data.py          # Export (full + config), import, sources.py download, clear all TIs
 ├── frontend/
 │   ├── Dockerfile
 │   ├── index.html
@@ -430,7 +427,7 @@ PATCH  /api/config/archive_after_days  # Update archive threshold (min 10, persi
 GET    /digest                      # Standalone HTML digest page (no /api prefix)
 GET    /api/export                  # Full JSON export (download); ?analyst= for attribution
 GET    /api/export/config           # Config-only JSON export (sources + keywords); ?analyst= for attribution
-GET    /api/export/sources          # Legacy: download sources.py Python file
+GET    /api/export/sources          # Download sources.py generated from DB (for reference/migration)
 POST   /api/import/preview          # Upload JSON (full or config), validate, return diff counts (no write)
 POST   /api/import                  # Upload JSON (full or config) + apply (multipart: file + analyst fields)
 POST   /api/clear                   # Wipe articles + audit log (requires password in body)
@@ -457,7 +454,7 @@ POST   /api/clear                   # Wipe articles + audit log (requires passwo
 | 1 | Nothing — backend only ✓ | Docker Compose scaffold, FastAPI + SQLite, schema, RSS/JSON ingestion, dedup, 10-min cron, feed health tracking, source validation script |
 | 2a | Read-only feed UI ✓ | React frontend: feed list (virtualised, newest-first), TI cards (title, source, summary, severity badge, keyword highlight, seen-in-N badge, timestamp), source tier filter, light/dark mode, user cookie + name prompt, refresh button |
 | 2b | Full TI workflow ✓ | Lifecycle transitions (freely transitionable, IRRELEVANT restartable), notes inline, ticket ID capture + edit, closure notes, per-item transition history, severity editing, ticket hyperlinking, status filter triggers re-fetch |
-| 3 | Source management ✓ | Source list with health indicators (green/amber/red dot), TI count per source, add-with-preview (3 samples), soft-delete with inline confirmation, per-source test button; `export_sources.py` (legacy) syncs DB state back to `sources.py` — superseded by config import via Settings > Data |
+| 3 | Source management ✓ | Source list with health indicators (green/amber/red dot), TI count per source, add-with-preview (3 samples), soft-delete with inline confirmation, per-source test button |
 | 4 | Settings page ✓ | Keyword watchlist (add/delete, attributed to analyst, audit logged), audit log table (filterable by user/action/date, article targets link back to feed card with spotlight), `/digest` standalone HTML page (grouped by severity, print-optimised), `ARCHIVE_AFTER_DAYS` configurable from UI (persisted to `app_config` DB table, 10-day minimum enforced) |
 | 5 | Data portability & reset ✓ | Import/export and destructive data controls in Settings > Data tab (see below) |
 | 6 | UI polish & filter improvements ✓ | Multi-select filters, source filter, keyword highlight mode, context-aware timestamps (see below) |
