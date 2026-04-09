@@ -112,6 +112,12 @@ export function unarchiveSource(id, analyst) {
   })
 }
 
+export function deleteSource(id, analyst) {
+  return request(`/sources/${id}?analyst=${encodeURIComponent(analyst)}`, {
+    method: 'DELETE',
+  })
+}
+
 export function testSource(id) {
   return request(`/sources/${id}/test`, { method: 'POST' })
 }

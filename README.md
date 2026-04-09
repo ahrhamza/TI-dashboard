@@ -69,6 +69,8 @@ docker compose logs -f backend  # Tail backend logs
 - **Deduplication** — same article from multiple sources increments a counter rather than creating duplicates
 - **Auto-archive** — INGESTED items older than 10 days are archived automatically (configurable, 10-day minimum)
 - **Source health tracking** — sources auto-disable after 3 consecutive failures
+- **JSON feed formats**: standard JSON Feed (jsonfeed.org) and CISA KEV (`known_exploited_vulnerabilities.json`) — CISA entries map to NVD detail URLs
+- **Ingest age filter** — first poll of a new source takes the 3 most recent entries; subsequent polls drop entries older than 2 days to keep the queue fresh
 
 **Feed queue**
 - Virtualised list, newest first, with source name, tier badge, severity badge, keyword match tags, multi-source counter
@@ -96,6 +98,7 @@ docker compose logs -f backend  # Tail backend logs
 - **Disable / Enable** — pause or resume ingestion without removing the source; written to audit log
 - **Archive** — hides source from the default list and stops ingestion; archived sources visible via the Archived filter tab; written to audit log
 - **Restore** — un-archives a source back to disabled state (analyst must explicitly re-enable)
+- **Delete** — permanently removes an archived source (only available in the Archived tab); existing TI articles from the source are preserved
 - Filter tabs: All / Active / Disabled / Failing / Archived
 - Status badge distinguishes: Active / Degraded / Disabled (manual) / Failing (auto-disabled after 3 failures) / Archived
 

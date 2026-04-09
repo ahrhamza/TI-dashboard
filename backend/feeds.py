@@ -108,9 +108,12 @@ def fetch_rss_entries(source: Source) -> list[dict]:
 
 def fetch_json_entries(source: Source) -> list[dict]:
     """
-    Parse JSON Feed format (https://www.jsonfeed.org/version/1.1/).
-    Expected shape: { "items": [ { "url", "title", "summary"|"content_text",
-                                    "date_published" } ] }
+    Parse JSON feeds. Supports:
+    - JSON Feed format (https://www.jsonfeed.org/version/1.1/):
+        { "items": [ { "url", "title", "summary"|"content_text", "date_published" } ] }
+    - CISA KEV format:
+        { "vulnerabilities": [ { "cveID", "vulnerabilityName", "shortDescription",
+                                  "requiredAction", "dateAdded" } ] }
     """
     with httpx.Client(timeout=FETCH_TIMEOUT, follow_redirects=True) as client:
         resp = client.get(
@@ -119,6 +122,10 @@ def fetch_json_entries(source: Source) -> list[dict]:
         )
         resp.raise_for_status()
         data = resp.json()
+
+    # CISA KEV format detection
+    if "vulnerabilities" in data and "items" not in data:
+        return _parse_cisa_kev(data)
 
     entries = []
     for item in data.get("items", []):
@@ -149,6 +156,46 @@ def fetch_json_entries(source: Source) -> list[dict]:
     return entries
 
 
+def _parse_cisa_kev(data: dict) -> list[dict]:
+    """
+    Parse CISA Known Exploited Vulnerabilities catalog.
+    Constructs NVD detail URLs from cveID. Sorts newest-first by dateAdded.
+    """
+    entries = []
+    for vuln in data.get("vulnerabilities", []):
+        cve_id = vuln.get("cveID", "").strip()
+        if not cve_id:
+            continue
+
+        url = f"https://nvd.nist.gov/vuln/detail/{cve_id}"
+        vuln_name = vuln.get("vulnerabilityName", "")
+        title = f"{cve_id}: {vuln_name}" if vuln_name else cve_id
+
+        short_desc = vuln.get("shortDescription", "")
+        required_action = vuln.get("requiredAction", "")
+        raw_summary = short_desc
+        if required_action and required_action.lower() not in ("unknown", ""):
+            raw_summary = f"{short_desc} Required action: {required_action}".strip()
+        summary = truncate(strip_html(raw_summary)) if raw_summary else None
+
+        published_at = None
+        date_str = vuln.get("dateAdded", "")
+        if date_str:
+            try:
+                published_at = datetime.fromisoformat(date_str)
+            except ValueError:
+                pass
+
+        entries.append(
+            {"title": title, "url": url, "summary": summary, "published_at": published_at,
+             "_date_added": date_str}
+        )
+
+    # Sort newest-first so first-ingest cap picks up the most recent additions
+    entries.sort(key=lambda e: e.pop("_date_added", ""), reverse=True)
+    return entries
+
+
 # ── Core ingestion ────────────────────────────────────────────────────────────
 
 def ingest_source(source: Source, session: Session) -> int:
@@ -171,11 +218,18 @@ def ingest_source(source: Source, session: Session) -> int:
         else:
             entries = fetch_json_entries(source)
 
-        # First-ingest cap: limit to 5 most recent entries on a source's first
-        # successful poll to avoid flooding the queue with back-catalogue articles.
+        # First ingest: cap to 10 most recent entries (feed already sorted newest-first).
+        # Subsequent polls: drop entries older than 2 days to keep the queue fresh;
+        # undated entries are allowed through (some feeds legitimately omit dates).
         first_ingest = source.last_success_at is None
         if first_ingest:
-            entries = entries[:5]
+            entries = entries[:3]
+        else:
+            cutoff = datetime.utcnow() - timedelta(days=2)
+            entries = [
+                e for e in entries
+                if e.get("published_at") is None or e["published_at"] >= cutoff
+            ]
 
         source.last_success_at = now
         source.last_entry_count = len(entries)

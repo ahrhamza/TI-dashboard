@@ -25,7 +25,7 @@ all from a browser with no login required.
 |---------------|-----------------------------------------|
 | Backend       | Python 3.12, FastAPI, APScheduler       |
 | ORM / DB      | SQLModel + SQLite                       |
-| Feed parsing  | feedparser (RSS/Atom), httpx (JSON)     |
+| Feed parsing  | feedparser (RSS/Atom), httpx (JSON/CISA KEV) |
 | Frontend      | React 18, Vite, Tailwind CSS            |
 | Reverse proxy | Nginx                                   |
 | Runtime       | Docker Compose (Linux host)             |
@@ -226,11 +226,16 @@ All transitions are:
 
 - Global cron interval: **10 minutes**, uniform across all sources
 - On-demand refresh: POST `/api/refresh` — triggers immediate full poll
-- **First ingest cap**: on a source's first poll, only the 5 most recent entries are
+- **First ingest cap**: on a source's first poll, only the 3 most recent entries are
   ingested — prevents flooding the queue with a source's entire back-catalogue
+- **Age filter**: on subsequent polls, entries with `published_at` older than 2 days are
+  dropped; entries with no `published_at` always pass through
 - Deduplication: `sha256(source_id + article_url)` — unique constraint on `dedup_hash`
 - Same story from multiple sources: increments `seen_in_sources` counter on the
   canonical article; does not create duplicates
+- **JSON feed formats supported**: standard JSON Feed (`items` array) and CISA KEV
+  (`vulnerabilities` array — `cveID` used to construct NVD detail URLs, `dateAdded`
+  as published date, sorted newest-first before ingest cap is applied)
 - Auto-archive: articles older than **10 days** (minimum) with status `INGESTED` are archived
   (configurable via `ARCHIVE_AFTER_DAYS` in `.env`; minimum enforced at 10 days)
 - Source auto-disable: `consecutive_failures >= 3` sets `is_active = False` and
@@ -259,6 +264,7 @@ All transitions are:
 - **Enable** — immediate; sets `is_active = True`, resets `consecutive_failures = 0`; written to audit log as `source_enabled`
 - **Archive** — inline confirmation; sets `is_archived = True` and `is_active = False`; hidden from default list; written to audit log as `source_archived`
 - **Restore (unarchive)** — immediate; sets `is_archived = False`, leaves `is_active = False` (analyst must re-enable); written to audit log as `source_unarchived`
+- **Delete** — permanently removes an archived source; only available from the Archived tab; inline confirmation required; existing TI articles from the source are preserved; written to audit log as `source_deleted`
 
 Archived sources are shown via the **Archived** filter tab in the source list. All other filter tabs (All / Active / Disabled / Failing) show only non-archived sources.
 
@@ -365,6 +371,7 @@ Every significant action produces an audit entry:
 | `source_enabled`     | Source manually re-enabled                                           |
 | `source_archived`    | Source archived (hidden from list)                                   |
 | `source_unarchived`  | Archived source restored to disabled state                           |
+| `source_deleted`     | Archived source permanently deleted                                  |
 | `manual_refresh`     | Refresh button pressed                                               |
 | `keyword_added`      | Watchlist term added                                                 |
 | `keyword_disabled`   | Watchlist term disabled (retained but not matched at ingest)         |
@@ -443,6 +450,7 @@ PATCH  /api/sources/:id/disable    # Pause ingestion (is_active=False)
 PATCH  /api/sources/:id/enable     # Resume ingestion (is_active=True, reset failures)
 PATCH  /api/sources/:id/archive    # Archive source (is_archived=True, is_active=False)
 PATCH  /api/sources/:id/unarchive  # Restore archived source to disabled state
+DELETE /api/sources/:id            # Permanently delete an archived source (only if is_archived=True)
 POST   /api/refresh                # Trigger immediate poll
 GET    /api/audit                  # Audit log with filters
 GET    /api/keywords               # List all watchlist terms (active and disabled)

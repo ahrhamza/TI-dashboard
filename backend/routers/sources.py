@@ -253,6 +253,36 @@ def unarchive_source(source_id: int, body: dict = {}, session: Session = Depends
     return {"ok": True}
 
 
+@router.delete("/api/sources/{source_id}")
+def delete_source(
+    source_id: int,
+    analyst: str = Query("unknown"),
+    session: Session = Depends(get_session),
+):
+    """Permanently delete an archived source. Only archived sources may be deleted."""
+    from fastapi import HTTPException
+    from models import AuditLog
+
+    source = session.get(Source, source_id)
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    if not source.is_archived:
+        raise HTTPException(status_code=409, detail="Only archived sources can be deleted")
+
+    name = source.name
+    audit = AuditLog(
+        user=analyst,
+        action="source_deleted",
+        target_id=source_id,
+        target_type="source",
+        detail=f"Permanently deleted archived source '{name}'",
+    )
+    session.add(audit)
+    session.delete(source)
+    session.commit()
+    return {"ok": True}
+
+
 @router.post("/api/sources/{source_id}/test")
 def test_source(source_id: int, session: Session = Depends(get_session)):
     """Re-fetch up to 3 sample articles for an existing source. Does not ingest."""

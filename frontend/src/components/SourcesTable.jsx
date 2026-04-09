@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, Fragment } from 'react'
 import SourceHealthIcon from './SourceHealthIcon'
 import AddSourceFlow from './AddSourceFlow'
 import {
-  fetchSources, disableSource, enableSource, archiveSource, unarchiveSource, testSource,
+  fetchSources, disableSource, enableSource, archiveSource, unarchiveSource, deleteSource, testSource,
   fetchKeywords, addKeyword, toggleKeyword, deleteKeyword,
 } from '../api'
 
@@ -387,6 +387,8 @@ function SourcesTab({ user, onSourcesChange }) {
   const [confirmingId, setConfirmingId] = useState(null)
   const [confirmAction, setConfirmAction] = useState(null)
   const [actionInProgress, setActionInProgress] = useState(false)
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [deleteInProgress, setDeleteInProgress] = useState(false)
   const [testingId, setTestingId] = useState(null)
   const [testResults, setTestResults] = useState({})
 
@@ -480,10 +482,24 @@ function SourcesTab({ user, onSourcesChange }) {
   async function handleUnarchive(source) {
     try {
       await unarchiveSource(source.id, user)
-      await load(true) // reload archived view
+      await load(true)
       onSourcesChange()
     } catch (err) {
       console.error('Unarchive failed:', err)
+    }
+  }
+
+  async function handleDeleteSource(source) {
+    setDeleteInProgress(true)
+    try {
+      await deleteSource(source.id, user)
+      setConfirmDeleteId(null)
+      await load(true)
+      onSourcesChange()
+    } catch (err) {
+      console.error('Delete failed:', err)
+    } finally {
+      setDeleteInProgress(false)
     }
   }
 
@@ -659,12 +675,42 @@ function SourcesTab({ user, onSourcesChange }) {
                       </td>
                       <td style={{ ...tdStyle, paddingRight: '0.875rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                         {source.is_archived ? (
-                          <button
-                            onClick={() => handleUnarchive(source)}
-                            style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 500 }}
-                          >
-                            Restore
-                          </button>
+                          confirmDeleteId === source.id ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleDeleteSource(source)}
+                                disabled={deleteInProgress}
+                                style={{
+                                  fontSize: '0.75rem', fontWeight: 500, color: 'white',
+                                  background: '#E11D48', padding: '0.2rem 0.55rem',
+                                  borderRadius: 4, opacity: deleteInProgress ? 0.6 : 1,
+                                }}
+                              >
+                                {deleteInProgress ? '…' : 'Delete'}
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteId(null)}
+                                style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleUnarchive(source)}
+                                style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 500 }}
+                              >
+                                Restore
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteId(source.id)}
+                                style={{ fontSize: '0.75rem', color: '#E11D48', fontWeight: 500 }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )
                         ) : !isConfirming ? (
                           <div className="flex items-center justify-end gap-2">
                             <button
@@ -735,6 +781,16 @@ function SourcesTab({ user, onSourcesChange }) {
                             {confirmAction === 'disable'
                               ? <>Pause ingestion from <strong>{source.name}</strong>? You can re-enable it at any time.</>
                               : <>Archive <strong>{source.name}</strong>? It will be hidden from this list and ingestion will stop. You can restore it later.</>}
+                          </p>
+                        </td>
+                      </tr>
+                    )}
+
+                    {confirmDeleteId === source.id && (
+                      <tr style={{ background: 'var(--bg-hover)' }}>
+                        <td colSpan={10} style={{ padding: '0.625rem 0.875rem', borderBottom: '1px solid var(--border-subtle)' }}>
+                          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                            Permanently delete <strong>{source.name}</strong>? This cannot be undone. Existing TI articles from this source are preserved.
                           </p>
                         </td>
                       </tr>
