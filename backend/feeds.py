@@ -60,7 +60,7 @@ def parse_struct_time(st) -> datetime | None:
 
 
 def get_active_keywords(session: Session) -> list[str]:
-    return [k.term.lower() for k in session.exec(select(Keyword)).all()]
+    return [k.term.lower() for k in session.exec(select(Keyword).where(Keyword.is_active == True)).all()]  # noqa: E712
 
 
 def find_keyword_matches(title: str, summary: str, keywords: list[str]) -> str | None:
@@ -262,7 +262,9 @@ def poll_all_sources(session: Session) -> dict[str, int]:
     Poll every active source.
     Returns {source_name: new_article_count}.
     """
-    sources = session.exec(select(Source).where(Source.is_active == True)).all()
+    sources = session.exec(
+        select(Source).where(Source.is_active == True, Source.is_archived == False)  # noqa: E712
+    ).all()
 
     if not sources:
         logger.info("poll_all_sources: no active sources")

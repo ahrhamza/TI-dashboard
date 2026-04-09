@@ -35,6 +35,7 @@ class Source(SQLModel, table=True):
     tier: int  # 1 (authoritative) – 5 (community)
     feed_type: FeedType = FeedType.rss
     is_active: bool = True
+    is_archived: bool = False
     consecutive_failures: int = 0
     last_fetched_at: Optional[datetime] = None
     last_success_at: Optional[datetime] = None
@@ -84,6 +85,7 @@ class Keyword(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     term: str
+    is_active: bool = True
     created_at: datetime = Field(default_factory=datetime.utcnow)
     created_by: str = "system"
 

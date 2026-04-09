@@ -238,7 +238,6 @@ export default function App() {
         {page === 'sources' && (
           <main style={{ flex: 1, minWidth: 0 }}>
             <SourcesTable
-              sources={sources}
               user={name}
               onSourcesChange={loadData}
             />

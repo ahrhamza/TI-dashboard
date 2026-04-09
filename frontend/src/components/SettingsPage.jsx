@@ -1,19 +1,18 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
-  fetchKeywords, addKeyword, deleteKeyword, fetchAudit, fetchConfig, updateArchiveDays,
+  fetchAudit, fetchConfig, updateArchiveDays,
   getExportUrl, getExportConfigUrl, previewImport, confirmImport, clearAllTIs,
 } from '../api'
 
 const TABS = [
   { key: 'general', label: 'General' },
-  { key: 'keywords', label: 'Keywords' },
   { key: 'audit', label: 'Audit Log' },
   { key: 'data', label: 'Data' },
 ]
 
 const AUDIT_ACTIONS = [
   '', 'status_change', 'severity_change', 'note_added', 'ticket_raised',
-  'source_added', 'source_deleted', 'source_disabled', 'manual_refresh',
+  'source_added', 'source_disabled', 'source_enabled', 'source_archived', 'source_unarchived', 'manual_refresh',
   'keyword_added', 'keyword_removed', 'export', 'import',
 ]
 
@@ -152,198 +151,6 @@ function GeneralTab({ user }) {
           Open Digest ↗
         </a>
       </div>
-    </div>
-  )
-}
-
-// ── Keywords Tab ──────────────────────────────────────────────────────────────
-
-function KeywordsTab({ user }) {
-  const [keywords, setKeywords] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [newTerm, setNewTerm] = useState('')
-  const [adding, setAdding] = useState(false)
-  const [addError, setAddError] = useState(null)
-  const [confirmDelete, setConfirmDelete] = useState(null)
-
-  const load = useCallback(async () => {
-    try {
-      const kws = await fetchKeywords()
-      setKeywords(kws)
-    } catch {
-      // silent
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => { load() }, [load])
-
-  const handleAdd = async () => {
-    const term = newTerm.trim()
-    if (!term) return
-    setAdding(true)
-    setAddError(null)
-    try {
-      await addKeyword(term, user)
-      setNewTerm('')
-      await load()
-    } catch (e) {
-      const msg = e.message || ''
-      setAddError(msg.includes('409') ? `"${term}" already exists` : 'Failed to add keyword')
-    } finally {
-      setAdding(false)
-    }
-  }
-
-  const handleDelete = async (id) => {
-    try {
-      await deleteKeyword(id, user)
-      setConfirmDelete(null)
-      await load()
-    } catch {
-      // silent
-    }
-  }
-
-  return (
-    <div style={{ maxWidth: '560px' }}>
-      <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', margin: '0 0 1.25rem 0', lineHeight: '1.5' }}>
-        Terms are matched case-insensitively against article title and summary at ingest time.
-        Matching articles are flagged in the feed.
-      </p>
-
-      {/* Add form */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-        <input
-          type="text"
-          placeholder="e.g. APT28, ransomware, CVE-2026"
-          value={newTerm}
-          onChange={e => { setNewTerm(e.target.value); setAddError(null) }}
-          onKeyDown={e => e.key === 'Enter' && handleAdd()}
-          style={{
-            flex: 1,
-            padding: '0.4rem 0.6rem',
-            border: `1px solid ${addError ? '#E11D48' : 'var(--border)'}`,
-            borderRadius: '6px',
-            background: 'var(--bg-input)',
-            color: 'var(--text-primary)',
-            fontSize: '0.875rem',
-          }}
-        />
-        <button
-          onClick={handleAdd}
-          disabled={adding || !newTerm.trim()}
-          style={{
-            padding: '0.4rem 1rem',
-            background: 'var(--accent)',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '0.8125rem',
-            fontWeight: '500',
-            cursor: adding || !newTerm.trim() ? 'default' : 'pointer',
-            opacity: adding || !newTerm.trim() ? 0.6 : 1,
-          }}
-        >
-          {adding ? 'Adding…' : 'Add'}
-        </button>
-      </div>
-      {addError && (
-        <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.8rem', color: '#E11D48' }}>{addError}</p>
-      )}
-
-      {/* Keyword list */}
-      {loading ? (
-        <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', padding: '1rem 0' }}>Loading…</p>
-      ) : keywords.length === 0 ? (
-        <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', padding: '1rem 0', fontStyle: 'italic' }}>
-          No keywords yet. Add one above.
-        </p>
-      ) : (
-        <div style={{
-          border: '1px solid var(--border)',
-          borderRadius: '8px',
-          overflow: 'hidden',
-          marginTop: '0.75rem',
-        }}>
-          {keywords.map((kw, i) => (
-            <div
-              key={kw.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0.6rem 0.875rem',
-                borderTop: i > 0 ? '1px solid var(--border-subtle)' : 'none',
-                background: 'var(--bg-card)',
-              }}
-            >
-              <span style={{
-                fontFamily: 'monospace',
-                fontSize: '0.8375rem',
-                color: 'var(--text-primary)',
-                fontWeight: '500',
-              }}>
-                {kw.term}
-              </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  by {kw.created_by}
-                </span>
-                {confirmDelete === kw.id ? (
-                  <div style={{ display: 'flex', gap: '0.4rem' }}>
-                    <button
-                      onClick={() => handleDelete(kw.id)}
-                      style={{
-                        padding: '0.25rem 0.6rem',
-                        background: '#E11D48',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        fontSize: '0.75rem',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Delete
-                    </button>
-                    <button
-                      onClick={() => setConfirmDelete(null)}
-                      style={{
-                        padding: '0.25rem 0.6rem',
-                        background: 'transparent',
-                        color: 'var(--text-secondary)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '4px',
-                        fontSize: '0.75rem',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setConfirmDelete(kw.id)}
-                    style={{
-                      padding: '0.2rem 0.5rem',
-                      background: 'transparent',
-                      color: 'var(--text-muted)',
-                      border: '1px solid transparent',
-                      borderRadius: '4px',
-                      fontSize: '0.75rem',
-                      cursor: 'pointer',
-                    }}
-                    title={`Remove "${kw.term}"`}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   )
 }
@@ -1089,7 +896,6 @@ export default function SettingsPage({ user, onNavigateToArticle, onClearSuccess
 
       {/* Tab content */}
       {tab === 'general' && <GeneralTab user={user} />}
-      {tab === 'keywords' && <KeywordsTab user={user} />}
       {tab === 'audit' && <AuditTab onNavigateToArticle={onNavigateToArticle} />}
       {tab === 'data' && <DataTab user={user} onClearSuccess={onClearSuccess} />}
     </div>

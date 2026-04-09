@@ -58,6 +58,7 @@ def _build_export(session: Session, analyst: str) -> dict:
                 "tier": s.tier,
                 "feed_type": s.feed_type,
                 "is_active": s.is_active,
+                "is_archived": s.is_archived,
                 "consecutive_failures": s.consecutive_failures,
                 "last_fetched_at": _dt(s.last_fetched_at),
                 "last_success_at": _dt(s.last_success_at),
@@ -134,6 +135,7 @@ def _build_config_export(session: Session, analyst: str) -> dict:
                 "tier": s.tier,
                 "feed_type": s.feed_type,
                 "is_active": s.is_active,
+                "is_archived": s.is_archived,
                 "consecutive_failures": s.consecutive_failures,
                 "last_fetched_at": _dt(s.last_fetched_at),
                 "last_success_at": _dt(s.last_success_at),
@@ -303,11 +305,17 @@ async def import_data(
         if url in existing_sources_by_url:
             existing = existing_sources_by_url[url]
             id_remap[s["id"]] = existing.id
-            # Respect is_active from import — do not reinstate a source
-            # that was soft-deleted, and honour explicit active=False
+            # Respect is_active / is_archived from import
             import_active = s.get("is_active", True)
+            import_archived = s.get("is_archived", False)
+            changed = False
             if existing.is_active != import_active:
                 existing.is_active = import_active
+                changed = True
+            if existing.is_archived != import_archived:
+                existing.is_archived = import_archived
+                changed = True
+            if changed:
                 session.add(existing)
         else:
             new_src = Source(
@@ -316,6 +324,7 @@ async def import_data(
                 tier=s["tier"],
                 feed_type=s["feed_type"],
                 is_active=s.get("is_active", True),
+                is_archived=s.get("is_archived", False),
                 consecutive_failures=s.get("consecutive_failures", 0),
                 last_fetched_at=s.get("last_fetched_at"),
                 last_success_at=s.get("last_success_at"),

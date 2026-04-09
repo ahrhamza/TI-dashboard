@@ -111,7 +111,7 @@ ti-project/
 │       │   ├── Sidebar.jsx          # Collapsible filter panel
 │       │   ├── TopNav.jsx           # Fixed nav bar with page routing
 │       │   ├── UserPrompt.jsx       # First-visit name capture modal
-│       │   ├── SourcesTable.jsx     # Source management page
+│       │   ├── SourcesTable.jsx     # Source management page (Sources tab + Keywords tab)
 │       │   ├── SourceHealthIcon.jsx # Green/amber/red health dot
 │       │   ├── AddSourceFlow.jsx    # Two-step add source flow (preview → confirm)
 │       │   └── SettingsPage.jsx     # Tabbed settings: General, Keywords, Audit Log, Data
@@ -133,7 +133,8 @@ ti-project/
 | url                  | str      | RSS or JSON feed URL                       |
 | tier                 | int      | 1 (authoritative) – 5 (community)         |
 | feed_type            | enum     | `rss` or `json`                            |
-| is_active            | bool     | False = soft-deleted, no new ingestion     |
+| is_active            | bool     | False = ingestion paused (disabled or archived) |
+| is_archived          | bool     | True = hidden from default list, no ingestion   |
 | consecutive_failures | int      | Auto-disable at 3                          |
 | last_fetched_at      | datetime |                                            |
 | last_success_at      | datetime |                                            |
@@ -178,6 +179,7 @@ ti-project/
 |------------|--------|-------|
 | id         | int PK |       |
 | term       | str    | Case-insensitive match on ingest |
+| is_active  | bool   | False = retained but skipped at ingest |
 | created_at | datetime |     |
 | created_by | str    |       |
 
@@ -243,19 +245,31 @@ All transitions are:
 2. Backend fetches feed and returns 3 sample articles (preview only, not ingested)
 3. Analyst reviews samples, sets name and tier, confirms
 4. Source is saved and included in next poll cycle
-5. Action written to audit log
+5. Duplicate check on both URL and name (case-insensitive) — 409 if either exists
+6. Action written to audit log
 
-### Delete Source
-- Requires confirmation dialog: "This will stop future ingestion. Historical TIs are preserved."
-- Sets `is_active = False`; does not delete rows from `articles`
-- Written to audit log
+### Source States
+- **Active** — ingesting normally
+- **Disabled** — manually paused (`is_active = False`); still visible in the list; can be re-enabled
+- **Failing** — auto-disabled after 3 consecutive failures (`is_active = False`, `consecutive_failures >= 3`)
+- **Archived** — hidden from the default list (`is_archived = True`); ingestion stopped; restorable
+
+### Source Actions
+- **Disable** — inline confirmation; sets `is_active = False`; written to audit log as `source_disabled`
+- **Enable** — immediate; sets `is_active = True`, resets `consecutive_failures = 0`; written to audit log as `source_enabled`
+- **Archive** — inline confirmation; sets `is_archived = True` and `is_active = False`; hidden from default list; written to audit log as `source_archived`
+- **Restore (unarchive)** — immediate; sets `is_archived = False`, leaves `is_active = False` (analyst must re-enable); written to audit log as `source_unarchived`
+
+Archived sources are shown via the **Archived** filter tab in the source list. All other filter tabs (All / Active / Disabled / Failing) show only non-archived sources.
 
 ### Source Health
-| Status   | Condition                         | UI indicator |
-|----------|-----------------------------------|--------------|
-| Healthy  | Last fetch successful             | Green dot    |
-| Degraded | 1–2 consecutive failures          | Amber dot    |
-| Failing  | 3+ consecutive failures (disabled)| Red dot      |
+| Status   | Condition                                        | UI indicator |
+|----------|--------------------------------------------------|--------------|
+| Active   | `is_active=True`, 0 failures                    | Green dot    |
+| Degraded | `is_active=True`, 1–2 consecutive failures       | Amber dot    |
+| Disabled | `is_active=False`, fewer than 3 failures         | Amber badge  |
+| Failing  | 3+ consecutive failures (auto-disabled)          | Red dot      |
+| Archived | `is_archived=True`                               | Grey badge   |
 
 ---
 
@@ -322,10 +336,15 @@ Each card in the feed queue displays:
 
 ## Keyword Watchlist
 
-- Managed from Settings page
+- Managed from the **Sources page → Keywords tab** (moved from Settings)
 - Terms matched case-insensitively against title + summary on ingest
+- Only **active** (`is_active = True`) keywords are matched at ingest time
 - Matches stored as comma-separated string in `articles.keyword_matches`
 - Matching articles get a flag indicator on their card
+- **Disable** — term is retained but skipped at ingest; shown with strikethrough and grouped under "Disabled" in the UI
+- **Enable** — reactivates a disabled term for future ingestion
+- Duplicate check on add (case-insensitive, 409)
+- All changes attributed to analyst and written to audit log
 - Examples to seed: `APT28`, `Lazarus`, `CISA`, `CVE-2026`, `Ukraine`, `Iran`,
   `ransomware`, `critical infrastructure`, `zero-day`
 
@@ -335,18 +354,22 @@ Each card in the feed queue displays:
 
 Every significant action produces an audit entry:
 
-| Action             | Trigger                                 |
-|--------------------|-----------------------------------------|
-| `status_change`    | Any TI lifecycle transition             |
-| `severity_change`  | Severity updated on a TI                |
-| `note_added`       | Note written to a TI                    |
-| `ticket_raised`    | Ticket ID recorded on a TI             |
-| `source_added`     | New source confirmed and saved          |
-| `source_deleted`   | Source soft-deleted                     |
-| `source_disabled`  | Auto-disabled after 3 failures; detail includes source name and last error |
-| `manual_refresh`   | Refresh button pressed                  |
-| `keyword_added`    | Watchlist term added                    |
-| `keyword_removed`  | Watchlist term removed                  |
+| Action               | Trigger                                                              |
+|----------------------|----------------------------------------------------------------------|
+| `status_change`      | Any TI lifecycle transition                                          |
+| `severity_change`    | Severity updated on a TI                                             |
+| `note_added`         | Note written to a TI                                                 |
+| `ticket_raised`      | Ticket ID recorded on a TI                                           |
+| `source_added`       | New source confirmed and saved                                       |
+| `source_disabled`    | Source manually disabled, or auto-disabled after 3 failures; detail includes source name |
+| `source_enabled`     | Source manually re-enabled                                           |
+| `source_archived`    | Source archived (hidden from list)                                   |
+| `source_unarchived`  | Archived source restored to disabled state                           |
+| `manual_refresh`     | Refresh button pressed                                               |
+| `keyword_added`      | Watchlist term added                                                 |
+| `keyword_disabled`   | Watchlist term disabled (retained but not matched at ingest)         |
+| `keyword_enabled`    | Disabled watchlist term re-enabled                                   |
+| `keyword_removed`    | Watchlist term permanently removed                                   |
 
 UI: table view inside the Settings page (as a tab/section), filterable by user, action type, and date range. Audit is not a standalone nav item.
 
@@ -413,15 +436,19 @@ GET    /api/articles               # List with filters + pagination cursor
 PATCH  /api/articles/:id/status    # Lifecycle transition
 PATCH  /api/articles/:id/severity  # Set severity
 PATCH  /api/articles/:id/notes     # Append note
-GET    /api/sources                # List all sources with health
+GET    /api/sources                # List sources (archived excluded by default; ?show_archived=true to include)
 POST   /api/sources/preview        # Fetch 3 sample items from a URL
-POST   /api/sources                # Add confirmed source
-DELETE /api/sources/:id            # Soft-delete source
+POST   /api/sources                # Add confirmed source (URL + name dedup, 409 on conflict)
+PATCH  /api/sources/:id/disable    # Pause ingestion (is_active=False)
+PATCH  /api/sources/:id/enable     # Resume ingestion (is_active=True, reset failures)
+PATCH  /api/sources/:id/archive    # Archive source (is_archived=True, is_active=False)
+PATCH  /api/sources/:id/unarchive  # Restore archived source to disabled state
 POST   /api/refresh                # Trigger immediate poll
 GET    /api/audit                  # Audit log with filters
-GET    /api/keywords               # List watchlist terms
-POST   /api/keywords               # Add term
-DELETE /api/keywords/:id           # Remove term
+GET    /api/keywords               # List all watchlist terms (active and disabled)
+POST   /api/keywords               # Add term (case-insensitive dedup, 409 on conflict)
+PATCH  /api/keywords/:id/toggle    # Toggle is_active on a keyword
+DELETE /api/keywords/:id           # Permanently remove term
 GET    /api/config                  # Get runtime config (archive_after_days)
 PATCH  /api/config/archive_after_days  # Update archive threshold (min 10, persisted to DB)
 GET    /digest                      # Standalone HTML digest page (no /api prefix)

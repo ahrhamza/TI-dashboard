@@ -20,8 +20,11 @@ export function fetchArticles({ showIrrelevant = false, showArchived = false, li
   return request(`/articles?${params}`)
 }
 
-export function fetchSources() {
-  return request('/sources')
+export function fetchSources({ showArchived = false } = {}) {
+  const params = new URLSearchParams()
+  if (showArchived) params.set('show_archived', 'true')
+  const qs = params.toString()
+  return request(`/sources${qs ? '?' + qs : ''}`)
 }
 
 export async function triggerRefresh() {
@@ -77,9 +80,35 @@ export function addSource(name, url, tier, feedType, analyst) {
   })
 }
 
-export function deleteSource(id, analyst) {
-  return request(`/sources/${id}?analyst=${encodeURIComponent(analyst)}`, {
-    method: 'DELETE',
+export function disableSource(id, analyst) {
+  return request(`/sources/${id}/disable`, {
+    method: 'PATCH',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ analyst }),
+  })
+}
+
+export function enableSource(id, analyst) {
+  return request(`/sources/${id}/enable`, {
+    method: 'PATCH',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ analyst }),
+  })
+}
+
+export function archiveSource(id, analyst) {
+  return request(`/sources/${id}/archive`, {
+    method: 'PATCH',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ analyst }),
+  })
+}
+
+export function unarchiveSource(id, analyst) {
+  return request(`/sources/${id}/unarchive`, {
+    method: 'PATCH',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ analyst }),
   })
 }
 
@@ -97,6 +126,14 @@ export function addKeyword(term, analyst) {
     method: 'POST',
     headers: JSON_HEADERS,
     body: JSON.stringify({ term, analyst }),
+  })
+}
+
+export function toggleKeyword(id, analyst) {
+  return request(`/keywords/${id}/toggle`, {
+    method: 'PATCH',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ analyst }),
   })
 }
 

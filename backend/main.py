@@ -52,6 +52,20 @@ async def lifespan(app: FastAPI):
             conn.execute(text("ALTER TABLE sources ADD COLUMN created_by TEXT NOT NULL DEFAULT 'system'"))
             conn.commit()
             logger.info("Migration: added sources.created_by column")
+        if "is_archived" not in existing_cols:
+            conn.execute(text("ALTER TABLE sources ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0"))
+            conn.commit()
+            logger.info("Migration: added sources.is_archived column")
+
+    with engine.connect() as conn:
+        existing_cols = {
+            row[1]
+            for row in conn.execute(text("PRAGMA table_info(keywords)")).fetchall()
+        }
+        if "is_active" not in existing_cols:
+            conn.execute(text("ALTER TABLE keywords ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1"))
+            conn.commit()
+            logger.info("Migration: added keywords.is_active column")
 
     with Session(engine) as session:
         source_count = len(session.exec(select(Source)).all())

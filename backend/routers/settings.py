@@ -49,6 +49,30 @@ def add_keyword(body: KeywordIn, session: Session = Depends(get_session)):
     return keyword
 
 
+@router.patch("/{keyword_id}/toggle")
+def toggle_keyword(keyword_id: int, body: dict, session: Session = Depends(get_session)):
+    keyword = session.get(Keyword, keyword_id)
+    if not keyword:
+        raise HTTPException(status_code=404, detail="Keyword not found")
+
+    analyst = body.get("analyst", "unknown") if body else "unknown"
+    keyword.is_active = not keyword.is_active
+    session.add(keyword)
+
+    action = "keyword_enabled" if keyword.is_active else "keyword_disabled"
+    audit = AuditLog(
+        user=analyst,
+        action=action,
+        target_id=keyword_id,
+        target_type=None,
+        detail=f"{'Enabled' if keyword.is_active else 'Disabled'} keyword watchlist term: '{keyword.term}'",
+    )
+    session.add(audit)
+    session.commit()
+    session.refresh(keyword)
+    return keyword
+
+
 @router.delete("/{keyword_id}")
 def remove_keyword(keyword_id: int, analyst: str = "unknown", session: Session = Depends(get_session)):
     keyword = session.get(Keyword, keyword_id)

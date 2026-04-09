@@ -89,27 +89,37 @@ docker compose logs -f backend  # Tail backend logs
 - **Per-item history** — expandable audit trail on each card (timestamp, analyst, transition)
 - All transitions timestamped, attributed to the analyst name from cookie, written to audit log
 
-**Source management**
+**Source management** (Sources page — Sources tab)
 - Table view of all sources with health indicator (green/amber/red dot), tier, feed type, last fetched, last success, entry count, consecutive failures, and count of active TIs per source
-- **Add source** — enter a URL, preview 3 sample articles, set name and tier, confirm; written to audit log
+- **Add source** — enter a URL, preview 3 sample articles, set name and tier, confirm; URL and name duplicate checks (409); written to audit log
 - **Test** — re-fetch any source on demand and view 3 samples inline without ingesting
-- **Soft-delete** — inline confirmation; stops future ingestion, preserves all historical TIs; written to audit log
-- Filter by status: All / Active / Inactive / Failing
+- **Disable / Enable** — pause or resume ingestion without removing the source; written to audit log
+- **Archive** — hides source from the default list and stops ingestion; archived sources visible via the Archived filter tab; written to audit log
+- **Restore** — un-archives a source back to disabled state (analyst must explicitly re-enable)
+- Filter tabs: All / Active / Disabled / Failing / Archived
+- Status badge distinguishes: Active / Degraded / Disabled (manual) / Failing (auto-disabled after 3 failures) / Archived
+
+**Keyword management** (Sources page — Keywords tab)
+- Add/disable/remove watchlist terms from a dedicated tab alongside source management
+- **Disable** — term is retained but skipped at ingest; shown with strikethrough and grouped separately; written to audit log
+- **Enable** — reactivates a disabled term
+- Duplicate check on add (case-insensitive, 409)
+- All changes attributed to analyst and written to audit log
 
 **UI**
 - Light and dark mode — toggled in the nav bar, persisted in `localStorage`
 - Analyst identity — first-visit name prompt stored in a 90-day cookie, rename option in nav bar
 - Manual refresh — button triggers an immediate poll of all sources
+- Minimal scrollbars throughout (4px, theme-aware)
 
 **Settings page**
-- **Keywords** — manage the ingest-time watchlist; add/delete terms, all changes attributed to analyst and written to audit log
 - **Audit log** — full table view (timestamp, user, action, target, detail) filterable by user, action type, and date range; article targets are clickable links that jump to the card in the feed, surface it if filtered out, and highlight it until dismissed
 - **General** — `ARCHIVE_AFTER_DAYS` configurable from the UI (minimum 10, persisted to DB, takes effect on the next hourly archive run); link to daily digest
 - **Daily digest** — `GET /digest` serves a standalone, print-optimised HTML page of all TO_ADDRESS and TICKET_RAISED items grouped by severity; suitable for screenshots or PDF export
 - **Data** — export, import, and reset controls (see below)
 
 **Data portability (Settings > Data)**
-- **Export Data** — downloads a timestamped `socfeed_export_YYYY-MM-DD.json` containing all sources (including soft-deleted), articles with full status/notes/tickets, audit log, and keywords; export is attributed to the analyst and written to the audit log
+- **Export Data** — downloads a timestamped `socfeed_export_YYYY-MM-DD.json` containing all sources (including archived), articles with full status/notes/tickets, audit log, and keywords; export is attributed to the analyst and written to the audit log
 - **Import** — upload a previously exported JSON file; shows a preview diff (new TIs / sources / keywords to be added) before confirming; sources and keywords are upserted, articles upserted on dedup hash, audit log entries appended; import is written to the audit log
 - **Clear All TIs** — two-step destructive reset: confirmation dialog followed by password prompt (matches `CLEAR_PASSWORD` in `.env`); deletes all articles and audit log entries, preserves sources and keywords; feed reloads to empty state after clear
 
