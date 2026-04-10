@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: sqlite:////data/socfeed.db
-      ARCHIVE_AFTER_HOURS: ${ARCHIVE_AFTER_HOURS:-72}
+      ARCHIVE_AFTER_DAYS: ${ARCHIVE_AFTER_DAYS:-7}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       CLEAR_PASSWORD: ${CLEAR_PASSWORD:-changeme}
