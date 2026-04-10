@@ -36,7 +36,7 @@ export default function App() {
   // Data
   const [articles, setArticles] = useState([])
   const [sources, setSources] = useState([])
-  const [keywords, setKeywords] = useState([]) // array of term strings
+  const [keywords, setKeywords] = useState([]) // array of keyword objects
   const [loading, setLoading] = useState(true)
   const [lastRefreshed, setLastRefreshed] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -51,6 +51,7 @@ export default function App() {
     tier: [],            // array of selected tier strings ('1'–'5')
     sources: [],         // array of selected source IDs (numbers)
     keywordMode: 'all',  // 'all' | 'keyword_only' | 'highlight'
+    keywords: [],        // array of selected keyword term strings
     showIrrelevant: false,
     showArchived: false,
   })
@@ -71,7 +72,7 @@ export default function App() {
       ])
       setArticles(arts)
       setSources(srcs)
-      setKeywords(kwds.map(k => k.term))
+      setKeywords(kwds)
       setLastRefreshed(new Date())
     } catch (err) {
       console.error('Failed to load data:', err)
@@ -145,6 +146,12 @@ export default function App() {
       if (filters.severity.length && !filters.severity.includes(a.severity)) return false
       if (filters.status.length && !filters.status.includes(a.status)) return false
       if (filters.keywordMode === 'keyword_only' && !a.keyword_matches) return false
+      if (filters.keywords.length) {
+        const articleTerms = a.keyword_matches
+          ? a.keyword_matches.split(',').map(t => t.trim())
+          : []
+        if (!filters.keywords.some(t => articleTerms.includes(t))) return false
+      }
       if (filters.tier.length) {
         const src = sourceMap[a.source_id]
         if (!src || !filters.tier.includes(String(src.tier))) return false
@@ -167,10 +174,10 @@ export default function App() {
     }
 
     return filtered
-  }, [articles, filters.severity, filters.status, filters.tier, filters.keywordMode, filters.sources, sourceMap, spotlightId, pinnedArticle])
+  }, [articles, filters.severity, filters.status, filters.tier, filters.keywordMode, filters.keywords, filters.sources, sourceMap, spotlightId, pinnedArticle])
 
   // Only pass keywords to cards when highlight mode is active
-  const highlightKeywords = filters.keywordMode === 'highlight' ? keywords : []
+  const highlightKeywords = filters.keywordMode === 'highlight' ? keywords.map(k => k.term) : []
 
   return (
     <div style={{ background: 'var(--bg-page)', color: 'var(--text-primary)', minHeight: '100vh' }}>
@@ -210,6 +217,7 @@ export default function App() {
               filters={filters}
               onFilterChange={setFilters}
               sources={sources}
+              keywords={keywords}
             />
             <main
               style={{

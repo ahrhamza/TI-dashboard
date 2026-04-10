@@ -106,6 +106,7 @@ def _build_export(session: Session, analyst: str) -> dict:
             {
                 "id": k.id,
                 "term": k.term,
+                "aliases": k.aliases,
                 "created_at": _dt(k.created_at),
                 "created_by": k.created_by,
             }
@@ -149,6 +150,7 @@ def _build_config_export(session: Session, analyst: str) -> dict:
             {
                 "id": k.id,
                 "term": k.term,
+                "aliases": k.aliases,
                 "created_at": _dt(k.created_at),
                 "created_by": k.created_by,
             }
@@ -374,6 +376,7 @@ async def import_data(
             continue
         new_kw = Keyword(
             term=term,
+            aliases=k.get("aliases"),
             created_at=k.get("created_at") or datetime.utcnow(),
             created_by=k.get("created_by", "import"),
         )

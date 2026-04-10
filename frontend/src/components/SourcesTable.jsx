@@ -3,7 +3,7 @@ import SourceHealthIcon from './SourceHealthIcon'
 import AddSourceFlow from './AddSourceFlow'
 import {
   fetchSources, disableSource, enableSource, archiveSource, unarchiveSource, deleteSource, testSource,
-  fetchKeywords, addKeyword, toggleKeyword, deleteKeyword,
+  fetchKeywords, addKeyword, toggleKeyword, deleteKeyword, updateKeyword,
 } from '../api'
 
 function parseUTC(dateStr) {
@@ -136,6 +136,10 @@ function KeywordsTab({ user }) {
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [editingAliasId, setEditingAliasId] = useState(null)
+  const [termInput, setTermInput] = useState('')
+  const [aliasInput, setAliasInput] = useState('')
+  const [aliasEditError, setAliasEditError] = useState(null)
 
   const load = useCallback(async () => {
     try {
@@ -183,6 +187,41 @@ function KeywordsTab({ user }) {
       await load()
     } catch {
       // silent
+    }
+  }
+
+  const startAliasEdit = (kw) => {
+    setEditingAliasId(kw.id)
+    setTermInput(kw.term)
+    setAliasInput(kw.aliases ? kw.aliases.split('|').join(', ') : '')
+    setAliasEditError(null)
+  }
+
+  const cancelAliasEdit = () => {
+    setEditingAliasId(null)
+    setTermInput('')
+    setAliasInput('')
+    setAliasEditError(null)
+  }
+
+  const saveAliasEdit = async (id) => {
+    const term = termInput.trim()
+    if (!term) return
+    const cleanedAliases = aliasInput
+      .split(',')
+      .map(s => s.trim().toLowerCase())
+      .filter(Boolean)
+      .join('|')
+    try {
+      await updateKeyword(id, term, cleanedAliases || null, user)
+      setEditingAliasId(null)
+      setTermInput('')
+      setAliasInput('')
+      setAliasEditError(null)
+      await load()
+    } catch (e) {
+      const msg = e.message || ''
+      setAliasEditError(msg.includes('409') ? `"${term}" already exists` : 'Failed to save')
     }
   }
 
@@ -251,6 +290,15 @@ function KeywordsTab({ user }) {
             setConfirmDelete={setConfirmDelete}
             onToggle={handleToggle}
             onDelete={handleDelete}
+            editingAliasId={editingAliasId}
+            termInput={termInput}
+            aliasInput={aliasInput}
+            aliasEditError={aliasEditError}
+            onTermInputChange={setTermInput}
+            onAliasInputChange={setAliasInput}
+            onStartAliasEdit={startAliasEdit}
+            onSaveAliasEdit={saveAliasEdit}
+            onCancelAliasEdit={cancelAliasEdit}
           />
           {disabled.length > 0 && (
             <KeywordList
@@ -262,6 +310,15 @@ function KeywordsTab({ user }) {
               onToggle={handleToggle}
               onDelete={handleDelete}
               muted
+              editingAliasId={editingAliasId}
+              termInput={termInput}
+              aliasInput={aliasInput}
+              aliasEditError={aliasEditError}
+              onTermInputChange={setTermInput}
+              onAliasInputChange={setAliasInput}
+              onStartAliasEdit={startAliasEdit}
+              onSaveAliasEdit={saveAliasEdit}
+              onCancelAliasEdit={cancelAliasEdit}
             />
           )}
         </>
@@ -270,7 +327,11 @@ function KeywordsTab({ user }) {
   )
 }
 
-function KeywordList({ keywords, heading, confirmDelete, setConfirmDelete, onToggle, onDelete, muted }) {
+function KeywordList({
+  keywords, heading, confirmDelete, setConfirmDelete, onToggle, onDelete, muted,
+  editingAliasId, termInput, aliasInput, aliasEditError,
+  onTermInputChange, onAliasInputChange, onStartAliasEdit, onSaveAliasEdit, onCancelAliasEdit,
+}) {
   if (keywords.length === 0) return null
   return (
     <div style={{ marginBottom: '1rem' }}>
@@ -287,67 +348,149 @@ function KeywordList({ keywords, heading, confirmDelete, setConfirmDelete, onTog
       <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
         {keywords.map((kw, i) => (
           <div key={kw.id} style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
             padding: '0.6rem 0.875rem',
             borderTop: i > 0 ? '1px solid var(--border-subtle)' : 'none',
             background: 'var(--bg-card)',
             opacity: muted ? 0.6 : 1,
           }}>
-            <span style={{
-              fontFamily: 'monospace',
-              fontSize: '0.8375rem',
-              color: 'var(--text-primary)',
-              fontWeight: 500,
-              textDecoration: muted ? 'line-through' : 'none',
-            }}>
-              {kw.term}
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>by {kw.created_by}</span>
-              <button
-                onClick={() => onToggle(kw)}
-                style={{
-                  fontSize: '0.75rem',
-                  fontWeight: 500,
-                  color: muted ? '#059669' : '#D97706',
-                }}
-                title={muted ? 'Enable this keyword' : 'Disable this keyword'}
-              >
-                {muted ? 'Enable' : 'Disable'}
-              </button>
-              {confirmDelete === kw.id ? (
-                <div style={{ display: 'flex', gap: '0.4rem' }}>
+            {/* Main row */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{
+                fontFamily: 'monospace',
+                fontSize: '0.8375rem',
+                color: 'var(--text-primary)',
+                fontWeight: 500,
+                textDecoration: muted ? 'line-through' : 'none',
+              }}>
+                {kw.term}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>by {kw.created_by}</span>
+                <button
+                  onClick={() => onToggle(kw)}
+                  style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 500,
+                    color: muted ? '#059669' : '#D97706',
+                  }}
+                  title={muted ? 'Enable this keyword' : 'Disable this keyword'}
+                >
+                  {muted ? 'Enable' : 'Disable'}
+                </button>
+                {confirmDelete === kw.id ? (
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <button
+                      onClick={() => onDelete(kw.id)}
+                      style={{
+                        padding: '0.2rem 0.5rem',
+                        background: '#E11D48',
+                        color: 'white',
+                        borderRadius: 4,
+                        fontSize: '0.75rem',
+                        fontWeight: 500,
+                      }}
+                    >
+                      Remove
+                    </button>
+                    <button
+                      onClick={() => setConfirmDelete(null)}
+                      style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
                   <button
-                    onClick={() => onDelete(kw.id)}
-                    style={{
-                      padding: '0.2rem 0.5rem',
-                      background: '#E11D48',
-                      color: 'white',
-                      borderRadius: 4,
-                      fontSize: '0.75rem',
-                      fontWeight: 500,
-                    }}
+                    onClick={() => setConfirmDelete(kw.id)}
+                    style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}
                   >
                     Remove
                   </button>
+                )}
+              </div>
+            </div>
+
+            {/* Aliases row */}
+            {editingAliasId === kw.id ? (
+              <div style={{ marginTop: '0.4rem' }}>
+                <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                  <input
+                    autoFocus
+                    type="text"
+                    value={termInput}
+                    onChange={e => onTermInputChange(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') onSaveAliasEdit(kw.id)
+                      if (e.key === 'Escape') onCancelAliasEdit()
+                    }}
+                    placeholder="keyword"
+                    style={{
+                      padding: '0.2rem 0.45rem',
+                      border: `1px solid ${aliasEditError ? '#E11D48' : 'var(--border)'}`,
+                      borderRadius: '4px',
+                      background: 'var(--bg-input)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.775rem',
+                      fontFamily: 'monospace',
+                      width: '140px',
+                    }}
+                  />
+                  <input
+                    type="text"
+                    value={aliasInput}
+                    onChange={e => onAliasInputChange(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') onSaveAliasEdit(kw.id)
+                      if (e.key === 'Escape') onCancelAliasEdit()
+                    }}
+                    placeholder="aliases: S/4, S/4HANA"
+                    style={{
+                      padding: '0.2rem 0.45rem',
+                      border: '1px solid var(--border)',
+                      borderRadius: '4px',
+                      background: 'var(--bg-input)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.775rem',
+                      fontFamily: 'monospace',
+                      width: '220px',
+                    }}
+                  />
                   <button
-                    onClick={() => setConfirmDelete(null)}
-                    style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}
+                    onClick={() => onSaveAliasEdit(kw.id)}
+                    style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--accent)' }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={onCancelAliasEdit}
+                    style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}
                   >
                     Cancel
                   </button>
                 </div>
-              ) : (
+                {aliasEditError && (
+                  <p style={{ margin: '0.25rem 0 0', fontSize: '0.72rem', color: '#E11D48' }}>{aliasEditError}</p>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.25rem', alignItems: 'center' }}>
+                {kw.aliases && (
+                  <>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                      {kw.aliases.split('|').join(', ')}
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>·</span>
+                  </>
+                )}
                 <button
-                  onClick={() => setConfirmDelete(kw.id)}
-                  style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}
+                  onClick={() => onStartAliasEdit(kw)}
+                  style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}
+                  title="Edit match variants for this keyword"
                 >
-                  Remove
+                  {kw.aliases ? 'edit' : '+ aliases'}
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         ))}
       </div>

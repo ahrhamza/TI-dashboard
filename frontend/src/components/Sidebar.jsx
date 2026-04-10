@@ -44,13 +44,14 @@ function hasActiveFilters(f) {
     f.status.length > 0 ||
     f.tier.length > 0 ||
     f.sources.length > 0 ||
+    f.keywords.length > 0 ||
     f.keywordMode !== 'all' ||
     f.showIrrelevant ||
     f.showArchived
   )
 }
 
-export default function Sidebar({ open, filters, onFilterChange, sources }) {
+export default function Sidebar({ open, filters, onFilterChange, sources, keywords }) {
   const [sourceSearch, setSourceSearch] = useState('')
 
   function set(key, value) {
@@ -73,6 +74,7 @@ export default function Sidebar({ open, filters, onFilterChange, sources }) {
       status: [],
       tier: [],
       sources: [],
+      keywords: [],
       keywordMode: 'all',
       showIrrelevant: false,
       showArchived: false,
@@ -211,7 +213,7 @@ export default function Sidebar({ open, filters, onFilterChange, sources }) {
             </div>
           </FilterSection>
 
-          {/* Keyword mode */}
+          {/* Keyword mode + filter */}
           <FilterSection title="Keywords">
             {KEYWORD_MODE_OPTIONS.map(opt => (
               <button
@@ -227,6 +229,54 @@ export default function Sidebar({ open, filters, onFilterChange, sources }) {
                 {opt.label}
               </button>
             ))}
+
+            {/* Keyword multi-select — only shown when there are keywords */}
+            {keywords && keywords.length > 0 && (
+              <div style={{ marginTop: '0.5rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.5rem' }}>
+                <button
+                  onClick={() => set('keywords', [])}
+                  className="flex items-center gap-2 w-full text-left px-2 py-1 rounded text-xs transition-colors"
+                  style={{
+                    background: !filters.keywords.length ? 'var(--accent-subtle)' : 'transparent',
+                    color: !filters.keywords.length ? 'var(--accent)' : 'var(--text-secondary)',
+                    fontWeight: !filters.keywords.length ? '500' : '400',
+                  }}
+                >
+                  All keywords
+                  {filters.keywords.length > 0 && (
+                    <span
+                      className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full"
+                      style={{ background: 'var(--accent)', color: '#fff' }}
+                    >
+                      {filters.keywords.length}
+                    </span>
+                  )}
+                </button>
+                <div style={{ maxHeight: '9rem', overflowY: 'auto' }}>
+                  {keywords.filter(k => k.is_active).map(kw => {
+                    const active = filters.keywords.includes(kw.term)
+                    return (
+                      <button
+                        key={kw.id}
+                        onClick={() => toggleMulti('keywords', kw.term)}
+                        className="flex items-center gap-1.5 w-full text-left px-2 py-1 rounded text-xs transition-colors"
+                        style={{
+                          background: active ? 'var(--accent-subtle)' : 'transparent',
+                          color: active ? 'var(--accent)' : 'var(--text-secondary)',
+                          fontWeight: active ? '500' : '400',
+                        }}
+                      >
+                        <span
+                          className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                          style={{ background: active ? 'var(--accent)' : 'var(--border)' }}
+                        />
+                        <span className="truncate flex-1 font-mono">{kw.term}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </FilterSection>
 
           <FilterSection title="Hidden Items">

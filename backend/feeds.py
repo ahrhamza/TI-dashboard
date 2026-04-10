@@ -59,14 +59,27 @@ def parse_struct_time(st) -> datetime | None:
         return None
 
 
-def get_active_keywords(session: Session) -> list[str]:
-    return [k.term.lower() for k in session.exec(select(Keyword).where(Keyword.is_active == True)).all()]  # noqa: E712
+def get_active_keywords(session: Session) -> list[tuple[str, str | None]]:
+    return [
+        (k.term.lower(), k.aliases)
+        for k in session.exec(select(Keyword).where(Keyword.is_active == True)).all()  # noqa: E712
+    ]
 
 
-def find_keyword_matches(title: str, summary: str, keywords: list[str]) -> str | None:
-    """Return comma-separated matched keyword terms, or None."""
+def find_keyword_matches(title: str, summary: str, keywords: list[tuple[str, str | None]]) -> str | None:
+    """Return comma-separated matched keyword terms (primary label), or None.
+
+    Each entry is (primary_term, aliases_pipe_separated). A keyword matches if
+    any of its terms (primary or aliases) appear in the haystack.
+    """
     haystack = f"{title} {summary}".lower()
-    matched = [kw for kw in keywords if kw in haystack]
+    matched = []
+    for term, aliases in keywords:
+        terms_to_check = [term]
+        if aliases:
+            terms_to_check += [a.strip().lower() for a in aliases.split("|") if a.strip()]
+        if any(t in haystack for t in terms_to_check):
+            matched.append(term)
     return ",".join(matched) if matched else None
 
 

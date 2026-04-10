@@ -149,6 +149,22 @@ export function deleteKeyword(id, analyst) {
   })
 }
 
+export function updateKeyword(id, term, aliases, analyst) {
+  return request(`/keywords/${id}`, {
+    method: 'PATCH',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ term, aliases: aliases || null, analyst }),
+  })
+}
+
+export function updateKeywordAliases(id, aliases, analyst) {
+  return request(`/keywords/${id}/aliases`, {
+    method: 'PATCH',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ aliases: aliases || null, analyst }),
+  })
+}
+
 // Audit log
 export function fetchAudit({ user, action, since, until, limit = 200, offset = 0 } = {}) {
   const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })

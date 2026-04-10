@@ -178,7 +178,8 @@ ti-project/
 | Column     | Type   | Notes |
 |------------|--------|-------|
 | id         | int PK |       |
-| term       | str    | Case-insensitive match on ingest |
+| term       | str    | Canonical label; stored in `articles.keyword_matches` on match |
+| aliases    | str    | Pipe-separated variant match strings, e.g. `S/4\|S/4HANA`; nullable |
 | is_active  | bool   | False = retained but skipped at ingest |
 | created_at | datetime |     |
 | created_by | str    |       |
@@ -322,7 +323,8 @@ Each card in the feed queue displays:
 ## Feed Queue — Display & Ordering
 
 - Default sort: **chronological, newest first** by `published_at`
-- Filters: severity (multi-select), lifecycle status (multi-select), source tier (multi-select), source (searchable multi-select), keyword mode (All / Keyword matches only / Highlight matches)
+- Filters: severity (multi-select), lifecycle status (multi-select), source tier (multi-select), source (searchable multi-select), keyword (multi-select — filters to articles matching any selected term), keyword mode (All / Keyword matches only / Highlight matches)
+- Keyword filter selects by primary term; alias matches are transparent (selecting `rhel` finds articles that matched via any of its aliases)
 - "Show irrelevant" toggle (off by default)
 - "Show archived" toggle (off by default)
 - Refresh button in header triggers on-demand poll and shows last-refreshed timestamp
@@ -345,10 +347,13 @@ Each card in the feed queue displays:
 - Managed from the **Sources page → Keywords tab** (moved from Settings)
 - Terms matched case-insensitively against title + summary on ingest
 - Only **active** (`is_active = True`) keywords are matched at ingest time
-- Matches stored as comma-separated string in `articles.keyword_matches`
+- Matches stored as comma-separated string in `articles.keyword_matches` — always uses the **primary term label**, never the alias string
 - Matching articles get a flag indicator on their card
 - **Disable** — term is retained but skipped at ingest; shown with strikethrough and grouped under "Disabled" in the UI
 - **Enable** — reactivates a disabled term for future ingestion
+- **Edit** — inline edit of both the primary term and aliases; updates all existing `keyword_matches` in articles to reflect the new primary term (backfill runs in the same transaction)
+- **Aliases** — pipe-separated variant strings stored in `keywords.aliases`; any alias match at ingest stores the primary term label; the primary term and aliases can be completely different strings that mean the same thing (e.g. `rhel` with aliases `red hat linux|red hat enterprise linux`)
+- **Alias backfill** — on startup and whenever aliases are saved, any article that has an alias string as its stored tag is corrected to the primary term
 - Duplicate check on add (case-insensitive, 409)
 - All changes attributed to analyst and written to audit log
 - Examples to seed: `APT28`, `Lazarus`, `CISA`, `CVE-2026`, `Ukraine`, `Iran`,
@@ -455,7 +460,9 @@ POST   /api/refresh                # Trigger immediate poll
 GET    /api/audit                  # Audit log with filters
 GET    /api/keywords               # List all watchlist terms (active and disabled)
 POST   /api/keywords               # Add term (case-insensitive dedup, 409 on conflict)
+PATCH  /api/keywords/:id           # Update term + aliases; backfills keyword_matches on existing articles
 PATCH  /api/keywords/:id/toggle    # Toggle is_active on a keyword
+PATCH  /api/keywords/:id/aliases   # Update aliases only; backfills keyword_matches on existing articles
 DELETE /api/keywords/:id           # Permanently remove term
 GET    /api/config                  # Get runtime config (archive_after_days)
 PATCH  /api/config/archive_after_days  # Update archive threshold (min 10, persisted to DB)
@@ -538,10 +545,12 @@ POST   /api/clear                   # Wipe articles + audit log (requires passwo
 - "All sources" clears the selection; count badge reflects how many sources are filtered to
 
 **Keyword highlight mode**
-- Keywords filter replaced with a three-option radio: "All articles" / "Keyword matches only" / "Highlight matches"
+- Keywords filter section has two parts: a three-option mode radio and a keyword multi-select list
+- Mode radio: "All articles" / "Keyword matches only" / "Highlight matches"
 - "Keyword matches only" behaves like the old keyword flag (hides articles without matches)
 - "Highlight matches" shows all articles but wraps every watchlist term found in the title or summary in an amber `<mark>` (case-insensitive, multiple matches per card, distinct in light and dark mode)
-- Watchlist terms fetched from the API at load time alongside articles and sources
+- Keyword multi-select: filter to articles matching one or more specific keywords; only active keywords shown; alias matching is transparent (primary term is what's compared)
+- Watchlist term objects fetched from the API at load time alongside articles and sources
 
 **Timestamp display**
 - Timestamps changed from relative-only to context-aware:

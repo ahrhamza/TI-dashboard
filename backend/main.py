@@ -19,7 +19,7 @@ from sqlalchemy import text
 
 from database import create_db_and_tables, engine
 from feeds import poll_all_sources
-from models import Source
+from models import Article, Keyword, Source
 from routers import articles, audit, config, data, digest, settings, sources
 from scheduler import create_scheduler
 
@@ -66,6 +66,33 @@ async def lifespan(app: FastAPI):
             conn.execute(text("ALTER TABLE keywords ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1"))
             conn.commit()
             logger.info("Migration: added keywords.is_active column")
+        if "aliases" not in existing_cols:
+            conn.execute(text("ALTER TABLE keywords ADD COLUMN aliases TEXT"))
+            conn.commit()
+            logger.info("Migration: added keywords.aliases column")
+
+    # Fix stale keyword_matches: if an alias string was previously stored as a tag
+    # (e.g. keyword renamed or alias added after ingest), replace it with the primary term.
+    with Session(engine) as session:
+        fixed = 0
+        for kw in session.exec(select(Keyword).where(Keyword.aliases != None)).all():  # noqa: E711
+            aliases = [a.strip().lower() for a in kw.aliases.split("|") if a.strip()]
+            for alias in aliases:
+                stale = session.exec(
+                    select(Article).where(Article.keyword_matches.contains(alias))  # type: ignore[arg-type]
+                ).all()
+                for article in stale:
+                    if not article.keyword_matches:
+                        continue
+                    terms = [t.strip() for t in article.keyword_matches.split(",")]
+                    updated = [kw.term if t == alias else t for t in terms]
+                    if updated != terms:
+                        article.keyword_matches = ",".join(updated)
+                        session.add(article)
+                        fixed += 1
+        if fixed:
+            session.commit()
+            logger.info(f"Migration: corrected {fixed} stale alias tag(s) in keyword_matches")
 
     with Session(engine) as session:
         source_count = len(session.exec(select(Source)).all())

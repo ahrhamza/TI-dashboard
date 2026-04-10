@@ -85,6 +85,7 @@ class Keyword(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     term: str
+    aliases: Optional[str] = None  # pipe-separated variant terms, e.g. "S/4|S/4HANA"
     is_active: bool = True
     created_at: datetime = Field(default_factory=datetime.utcnow)
     created_by: str = "system"

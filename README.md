@@ -1,6 +1,6 @@
 # SOCFeed
 
-Internal threat intelligence feed aggregator for a small SOC team. Ingests RSS and JSON feeds from ~33 curated cybersecurity sources, deduplicates them, and presents analysts with a unified triage queue.
+Internal threat intelligence feed aggregator for a small SOC team. Ingests RSS and JSON feeds from curated cybersecurity sources, deduplicates them, and presents analysts with a unified triage queue.
 
 Self-hosted, Docker-based. Designed to run at `socfeeds.albatha.com` or any internal host.
 
@@ -63,68 +63,87 @@ docker compose logs -f backend  # Tail backend logs
 
 ---
 
-## Features (Phases 1–6)
+## Features
 
-- **33 curated sources** across tiers 1–5 (authoritative vendors through community blogs), polled every 10 minutes
-- **Deduplication** — same article from multiple sources increments a counter rather than creating duplicates
-- **Auto-archive** — INGESTED items older than 10 days are archived automatically (configurable, 10-day minimum)
-- **Source health tracking** — sources auto-disable after 3 consecutive failures
-- **JSON feed formats**: standard JSON Feed (jsonfeed.org) and CISA KEV (`known_exploited_vulnerabilities.json`) — CISA entries map to NVD detail URLs
-- **Ingest age filter** — first poll of a new source takes the 3 most recent entries; subsequent polls drop entries older than 2 days to keep the queue fresh
+### Feed Ingestion
 
-**Feed queue**
-- Virtualised list, newest first, with source name, tier badge, severity badge, keyword match tags, multi-source counter
-- Article title (external link) and 160-char summary
-- Ticket ID and notes displayed inline on the card when present
-- Sidebar filters: all multi-select toggle style — severity, lifecycle status, source tier (select multiple simultaneously; "All" clears); dedicated source filter with search input; keyword mode (All / Keyword matches only / Highlight matches); show irrelevant / archived toggles
-- **Timestamp display** — context-aware: same-day items show `HH:MM · Xh ago`, older items show `Apr 3 · 2d ago`; three-mode toggle (Rel / Date / Both) in the nav bar, persisted per analyst in `localStorage`
-- **Keyword highlight mode** — when active, all watchlist terms are highlighted inline in article titles and summaries (amber mark, case-insensitive, multiple matches per card)
+- Sources polled every 10 minutes; on-demand refresh available from the nav bar
+- Deduplication — same article from multiple sources increments a counter rather than creating duplicates; a "N sources" badge appears on the card
+- First poll of a new source ingests only the 3 most recent entries to avoid flooding the queue; subsequent polls drop entries older than 2 days
+- Auto-archive — INGESTED items older than a configurable threshold (minimum 10 days) are archived automatically
+- Source auto-disable after 3 consecutive fetch failures
+- Supported feed formats: RSS/Atom and JSON Feed; CISA KEV (`known_exploited_vulnerabilities.json`) — CISA entries map to NVD detail URLs
 
-**Full TI lifecycle**
-- **Mark Irrelevant** — available from any status at any time; card fades to indicate state
-- **To Address** — move into the work queue (also restarts from Irrelevant)
-- **Raise Ticket** — inline prompt for ticket ID (required); numeric IDs link to `ithelpdesk.albatha.com`
+### Feed Queue
+
+- Virtualised list, newest first, with source name, tier badge, severity badge, keyword match tags, and multi-source counter
+- Article title (external link) and 160-char summary; ticket ID and notes displayed inline when present
+- **Timestamp display** — context-aware: same-day items show `HH:MM · Xh ago`, older items show `Apr 3 · 2d ago`; three-mode toggle (Rel / Date / Both) in the nav bar, persisted per analyst
+
+**Sidebar filters** — all multi-select:
+- Severity, lifecycle status, source tier — toggle multiple values simultaneously; "All" clears
+- Source — searchable scrollable list; select any number of sources
+- Keyword — scrollable list of active keywords; select one or more to show only articles that matched those terms (alias matches are transparent — selecting a keyword finds all articles matched by any of its aliases)
+- Keyword mode — All articles / Keyword matches only / Highlight matches (highlights watchlist terms inline in titles and summaries)
+- Show irrelevant / Show archived toggles
+
+### TI Lifecycle
+
+Every article moves through a defined lifecycle. All transitions are timestamped, attributed to the acting analyst, and written to the audit log.
+
+- **Mark Irrelevant** — available from any status at any time; card fades to 55% opacity
+- **To Address** — move into the work queue; also restarts from Irrelevant
+- **Raise Ticket** — inline prompt for ticket ID (required); numeric IDs render as links to `ithelpdesk.albatha.com`; ticket number editable after the fact
 - **Resolve** — inline prompt for optional closure notes
-- **Edit ticket number** — inline edit on Ticket Raised cards
-- **Severity selector** — inline dropdown on every card
-- **Notes** — inline textarea, appended not replaced
-- **Per-item history** — expandable audit trail on each card (timestamp, analyst, transition)
-- All transitions timestamped, attributed to the analyst name from cookie, written to audit log
+- **Severity** — inline dropdown on every card
+- **Notes** — inline textarea; text is appended to existing notes, never replaced
+- **History** — expandable per-card audit trail showing every transition (timestamp, analyst, new state)
 
-**Source management** (Sources page — Sources tab)
-- Table view of all sources with health indicator (green/amber/red dot), tier, feed type, last fetched, last success, entry count, consecutive failures, and count of active TIs per source
-- **Add source** — enter a URL, preview 3 sample articles, set name and tier, confirm; URL and name duplicate checks (409); written to audit log
-- **Test** — re-fetch any source on demand and view 3 samples inline without ingesting
-- **Disable / Enable** — pause or resume ingestion without removing the source; written to audit log
-- **Archive** — hides source from the default list and stops ingestion; archived sources visible via the Archived filter tab; written to audit log
+### Source Management
+
+Sources page → Sources tab.
+
+- Table view: health indicator dot, tier, feed type, last fetched, last success, entry count, consecutive failures, TI count
+- **Add source** — enter URL, preview 3 sample articles, set name and tier, confirm; URL and name are checked for duplicates (409)
+- **Test** — re-fetch any source on demand and view samples inline without ingesting
+- **Disable / Enable** — pause or resume ingestion without removing the source
+- **Archive** — hide source from the default list and stop ingestion; restorable via the Archived filter tab
 - **Restore** — un-archives a source back to disabled state (analyst must explicitly re-enable)
-- **Delete** — permanently removes an archived source (only available in the Archived tab); existing TI articles from the source are preserved
+- **Delete** — permanently removes an archived source; existing TI articles from the source are preserved
 - Filter tabs: All / Active / Disabled / Failing / Archived
-- Status badge distinguishes: Active / Degraded / Disabled (manual) / Failing (auto-disabled after 3 failures) / Archived
+- Status badges: Active / Degraded (1–2 failures) / Disabled (manual) / Failing (auto-disabled) / Archived
 
-**Keyword management** (Sources page — Keywords tab)
-- Add/disable/remove watchlist terms from a dedicated tab alongside source management
-- **Disable** — term is retained but skipped at ingest; shown with strikethrough and grouped separately; written to audit log
+### Keyword Watchlist
+
+Sources page → Keywords tab.
+
+- Terms matched case-insensitively against article title and summary at ingest; only active keywords are matched
+- **Aliases** — each keyword can have pipe-separated variant strings (e.g. `rhel` with aliases `red hat linux|red hat enterprise linux`); any alias match stores the primary term label on the article, so the term and its aliases can be completely different strings that mean the same thing
+- **Edit** — inline edit of both the primary term and aliases in one step; all existing article tags are updated to reflect any renamed term
+- **Disable** — term retained but skipped at ingest; shown with strikethrough
 - **Enable** — reactivates a disabled term
+- **Remove** — permanently deletes the term (inline confirmation)
 - Duplicate check on add (case-insensitive, 409)
 - All changes attributed to analyst and written to audit log
 
-**UI**
-- Light and dark mode — toggled in the nav bar, persisted in `localStorage`
-- Analyst identity — first-visit name prompt stored in a 90-day cookie, rename option in nav bar
-- Manual refresh — button triggers an immediate poll of all sources
-- Minimal scrollbars throughout (4px, theme-aware)
+### Settings
 
-**Settings page**
-- **Audit log** — full table view (timestamp, user, action, target, detail) filterable by user, action type, and date range; article targets are clickable links that jump to the card in the feed, surface it if filtered out, and highlight it until dismissed
-- **General** — `ARCHIVE_AFTER_DAYS` configurable from the UI (minimum 10, persisted to DB, takes effect on the next hourly archive run); link to daily digest
-- **Daily digest** — `GET /digest` serves a standalone, print-optimised HTML page of all TO_ADDRESS and TICKET_RAISED items grouped by severity; suitable for screenshots or PDF export
-- **Data** — export, import, and reset controls (see below)
+**General**
+- `ARCHIVE_AFTER_DAYS` configurable from the UI (minimum 10, persisted to DB)
+- Link to the daily digest page
 
-**Data portability (Settings > Data)**
-- **Export Data** — downloads a timestamped `socfeed_export_YYYY-MM-DD.json` containing all sources (including archived), articles with full status/notes/tickets, audit log, and keywords; export is attributed to the analyst and written to the audit log
-- **Import** — upload a previously exported JSON file; shows a preview diff (new TIs / sources / keywords to be added) before confirming; sources and keywords are upserted, articles upserted on dedup hash, audit log entries appended; import is written to the audit log
-- **Clear All TIs** — two-step destructive reset: confirmation dialog followed by password prompt (matches `CLEAR_PASSWORD` in `.env`); deletes all articles and audit log entries, preserves sources and keywords; feed reloads to empty state after clear
+**Audit Log**
+- Full table view (timestamp, user, action, target, detail) filterable by user, action type, and date range
+- Article targets are clickable — jumps to the card in the feed, surfacing it if it's filtered out, and highlights it until dismissed
+
+**Daily Digest**
+- `GET /digest` — standalone, print-optimised HTML page of all TO_ADDRESS and TICKET_RAISED items grouped by severity; suitable for screenshots or PDF export
+
+**Data**
+- **Export Data** — full JSON snapshot: all sources (including archived), articles with full status/notes/tickets/severity, audit log, and keywords; attributed to the analyst, written to audit log
+- **Export Config** — sources and keywords only, for bootstrapping a new instance without TI history
+- **Import** — upload a previously exported JSON (full or config); shows a preview diff before confirming; sources and keywords upserted, articles upserted on dedup hash, audit log appended
+- **Clear All TIs** — two-step destructive reset (confirmation + password); deletes all articles and audit log entries, preserves sources and keywords
 
 ---
 
